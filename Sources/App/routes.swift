@@ -1,3 +1,4 @@
+import FluentPostgreSQL
 import Vapor
 
 /// Register your application's routes here.
@@ -6,7 +7,7 @@ public func routes(_ router: Router) throws {
     router.get("/") { req in
         return "Hello, world!"
     }
-
+    
     let alexaController = AlexaController()
     let usersController = UsersController()
     try router.register(collection: alexaController)

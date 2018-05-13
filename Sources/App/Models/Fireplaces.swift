@@ -1,6 +1,6 @@
 import Foundation
 import Vapor
-import FluentSQLite
+import FluentPostgreSQL
 
 final class Fireplace:Codable {
     var id:UUID?
@@ -21,7 +21,7 @@ final class Fireplace:Codable {
     }
 }
 
-extension Fireplace: SQLiteUUIDModel {}
+extension Fireplace: PostgreSQLUUIDModel {}
 extension Fireplace: Content {}
 extension Fireplace: Migration {}
 extension Fireplace: Parameter {}

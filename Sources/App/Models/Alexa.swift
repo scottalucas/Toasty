@@ -1,6 +1,6 @@
 import Foundation
 import Vapor
-import FluentSQLite
+import FluentPostgreSQL
 
 struct AlexaMessage:Content {
     var directive:AlexaDirective
@@ -57,10 +57,16 @@ struct AlexaPayload:Codable {
 
 final class AlexaAccount: Codable {
     var toastyUserID:UUID
-    var id:String? //this is the Alexa access token
+    var accessToken:String? //this is the Alexa access token
+    var refreshToken:String?
+    var id: Int?
+    
+    init (toastyAccountID: UUID) {
+        toastyUserID = toastyAccountID
+    }
 }
 
-extension AlexaAccount:SQLiteStringModel {}
+extension AlexaAccount:PostgreSQLModel {}
 extension AlexaAccount:Content {}
 extension AlexaAccount:Migration {}
 extension AlexaAccount:Parameter {}
