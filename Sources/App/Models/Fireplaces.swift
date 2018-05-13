@@ -4,7 +4,7 @@ import FluentPostgreSQL
 
 final class Fireplace:Codable {
     var id:UUID?
-    var controlURL:URL!
+    var controlURL:String?
     var toastyUserID:UUID
     var alexaEndpointId:String?
 
