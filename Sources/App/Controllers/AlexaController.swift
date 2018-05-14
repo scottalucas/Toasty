@@ -1,7 +1,9 @@
 import Vapor
 import Fluent
+import CNIOHTTPParser
 
 struct AlexaController: RouteCollection {
+    let logger = PrintLogger()
     func boot(router: Router) throws {
         let alexaRoutes = router.grouped("Alexa")
         //        router.get("api", "acronyms", use: getAllHandler)
@@ -12,16 +14,17 @@ struct AlexaController: RouteCollection {
             return "Hello! You got me!"
     }
         func discoveryHandler (_ req: Request, message: AlexaMessage) throws -> (AlexaTestMessage) {
-           let token = message.directive.payload.scope?.token ?? "No token"
-            debugPrint(message)
-            debugPrint(token)
+            let token = message.directive.payload.scope?.token ?? "No token"
+            logger.debug("Request in discovery handler: \(req.debugDescription)")
+            logger.debug("Token in discovery hander: \(token)")
             return AlexaTestMessage(testMessage: token)
         }
         
-        func newUserLoginHandler (_ req: Request, message: String) {
+        func newAccountHandler (_ req: Request, accessToken: LWAAccessToken) -> String {
 //                .map(to: String.self) { token in
-//                    print("token found: " + token)
-//                    return token
+            let body = req.http.body.debugDescription
+            logger.debug("HTTP body in new account linker: \(body)")
+            return body
             }
 //        }
         
@@ -97,6 +100,8 @@ struct AlexaController: RouteCollection {
         
 //        acronymsRoutes.get(use: getAllHandler)
         alexaRoutes.post(AlexaMessage.self, at: "Discovery", use: discoveryHandler)
+        alexaRoutes.post(LWAAccessToken.self, at: "NewAmazonAccount", use: newAccountHandler)
+
 //        acronymsRoutes.get(Acronym.parameter, use: getHandler)
 //        acronymsRoutes.put(Acronym.parameter, use: updateHandler)
 //        acronymsRoutes.delete(Acronym.parameter, use: deleteHandler)
