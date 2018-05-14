@@ -5,7 +5,7 @@ import Vapor
 public func routes(_ router: Router) throws {
     // Basic "Hello, world!" example
     router.get("/") { req in
-        return "Hello, cruel world!"
+        return "Hello version 1.0"
     }
     
     let alexaController = AlexaController()
