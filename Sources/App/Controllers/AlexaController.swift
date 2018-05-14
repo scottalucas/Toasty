@@ -11,14 +11,19 @@ struct AlexaController: RouteCollection {
             debugPrint ("Hit on the post.")
             return "Hello! You got me!"
     }
-        func discoveryHandler (_ req: Request) throws -> Future<AlexaMessage> {
-            return try req.content.decode(AlexaMessage.self)
-                .map(to: AlexaMessage.self) {
-                    message in
-                    debugPrint(message.directive.header.name)
-                    return message
-            }
+        func discoveryHandler (_ req: Request, message: AlexaMessage) throws -> (AlexaTestMessage) {
+           let token = message.directive.payload.scope?.token ?? "No token"
+            debugPrint(message)
+            debugPrint(token)
+            return AlexaTestMessage(testMessage: token)
         }
+        
+        func newUserLoginHandler (_ req: Request, message: String) {
+//                .map(to: String.self) { token in
+//                    print("token found: " + token)
+//                    return token
+            }
+//        }
         
 //        func createHandler(_ req: Request, acronym: Acronym) throws -> Future<Acronym> {
 //            return acronym.save(on: req)
@@ -91,7 +96,7 @@ struct AlexaController: RouteCollection {
 //        }
         
 //        acronymsRoutes.get(use: getAllHandler)
-        alexaRoutes.post("Discovery", use: discoveryHandler)
+        alexaRoutes.post(AlexaMessage.self, at: "Discovery", use: discoveryHandler)
 //        acronymsRoutes.get(Acronym.parameter, use: getHandler)
 //        acronymsRoutes.put(Acronym.parameter, use: updateHandler)
 //        acronymsRoutes.delete(Acronym.parameter, use: deleteHandler)

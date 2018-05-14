@@ -55,6 +55,10 @@ struct AlexaPayload:Codable {
     var scope:AlexaScope?
 }
 
+struct AlexaTestMessage: Content {
+    var testMessage: String
+}
+
 final class AlexaAccount: Codable {
     var toastyUserID:UUID
     var accessToken:String? //this is the Alexa access token
