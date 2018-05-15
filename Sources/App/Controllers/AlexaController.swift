@@ -19,13 +19,7 @@ struct AlexaController: RouteCollection {
             logger.debug("Token in discovery hander: \(token)")
             return AlexaTestMessage(testMessage: token)
         }
-        
-        func newAccountHandler (_ req: Request, accessToken: LWAAccessToken) -> String {
-//                .map(to: String.self) { token in
-            let body = req.http.body.debugDescription
-            logger.debug("HTTP body in new account linker: \(body)")
-            return body
-            }
+
 //        }
         
 //        func createHandler(_ req: Request, acronym: Acronym) throws -> Future<Acronym> {
@@ -100,7 +94,6 @@ struct AlexaController: RouteCollection {
         
 //        acronymsRoutes.get(use: getAllHandler)
         alexaRoutes.post(AlexaMessage.self, at: "Discovery", use: discoveryHandler)
-        alexaRoutes.post(LWAAccessToken.self, at: "NewAmazonAccount", use: newAccountHandler)
 
 //        acronymsRoutes.get(Acronym.parameter, use: getHandler)
 //        acronymsRoutes.put(Acronym.parameter, use: updateHandler)
