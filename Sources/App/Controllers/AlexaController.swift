@@ -11,7 +11,7 @@ struct AlexaController: RouteCollection {
         
         func helloHandler (_ req: Request) -> String {
             debugPrint ("Hit on the post.")
-            return "Hello! You got me!"
+            return "Hello! You got Alexa controller!"
     }
         func discoveryHandler (_ req: Request, message: AlexaMessage) throws -> (AlexaTestMessage) {
             let token = message.directive.payload.scope?.token ?? "No token"
@@ -92,7 +92,7 @@ struct AlexaController: RouteCollection {
 //            }
 //        }
         
-//        acronymsRoutes.get(use: getAllHandler)
+        alexaRoutes.get(use: helloHandler)
         alexaRoutes.post(AlexaMessage.self, at: "Discovery", use: discoveryHandler)
 
 //        acronymsRoutes.get(Acronym.parameter, use: getHandler)

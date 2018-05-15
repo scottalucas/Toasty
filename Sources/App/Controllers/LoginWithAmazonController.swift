@@ -4,18 +4,18 @@ import CNIOHTTPParser
 
 struct LoginWithAmazonController: RouteCollection {
     let logger = PrintLogger()
+
     func boot(router: Router) throws {
+    
         let loginWithAmazonRoutes = router.grouped("LoginWithAmazon")
-        //        router.get("api", "acronyms", use: getAllHandler)
-        
         
         func helloHandler (_ req: Request) -> String {
-            debugPrint ("Hit LWA base route.")
+            logger.debug("Hit LWA base route.")
+            print("print Hit LWA base route.")
             return "Hello! You got LWA!"
         }
-        
+
         func newAccountHandler (_ req: Request, accessToken: LWAAccessToken) -> String {
-            //                .map(to: String.self) { token in
             let body = req.http.body.debugDescription
             logger.debug("HTTP body in new account linker: \(body)")
             return body
