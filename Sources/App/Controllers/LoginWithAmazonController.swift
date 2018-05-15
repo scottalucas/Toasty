@@ -10,14 +10,14 @@ struct LoginWithAmazonController: RouteCollection {
         let loginWithAmazonRoutes = router.grouped("LoginWithAmazon")
         
         func helloHandler (_ req: Request) -> String {
-            logger.debug("Hit LWA base route.")
+            logger.info("Hit LWA base route.")
             print("print Hit LWA base route.")
             return "Hello! You got LWA!"
         }
 
         func newAccountHandler (_ req: Request, accessToken: LWAAccessToken) -> String {
             let body = req.http.body.debugDescription
-            logger.debug("HTTP body in new account linker: \(body)")
+            logger.info("HTTP body in new account linker: \(body)")
             return body
         }
         //        }
