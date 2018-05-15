@@ -4,6 +4,7 @@ import CNIOHTTPParser
 
 struct AlexaController: RouteCollection {
     let logger = PrintLogger()
+    let foo = Environment.get("FOO")
     func boot(router: Router) throws {
         let alexaRoutes = router.grouped("Alexa")
         //        router.get("api", "acronyms", use: getAllHandler)
@@ -11,7 +12,7 @@ struct AlexaController: RouteCollection {
         
         func helloHandler (_ req: Request) -> String {
             debugPrint ("Hit on the post.")
-            return "Hello! You got Alexa controller!"
+            return "Hello! You got Alexa controller! Foo is \(foo ?? "Not found")"
     }
         func discoveryHandler (_ req: Request, message: AlexaMessage) throws -> (AlexaTestMessage) {
             let token = message.directive.payload.scope?.token ?? "No token"
