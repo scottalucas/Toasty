@@ -5,7 +5,7 @@ import Vapor
 public func routes(_ router: Router) throws {
     // Basic "Hello, world!" example
     router.get("/") { req in
-        return "Hello version 0.1"
+        return "Hello version 0.2"
 //        print("Hello version 1.0")
     }
     

@@ -92,7 +92,7 @@ struct LoginWithAmazonController: RouteCollection {
         //            }
         //        }
         
-        //        acronymsRoutes.get(use: getAllHandler)
+        loginWithAmazonRoutes.get(use: helloHandler)
         loginWithAmazonRoutes.post(LWAAccessToken.self, at: "NewAccount", use: newAccountHandler)
         
         //        acronymsRoutes.get(Acronym.parameter, use: getHandler)
