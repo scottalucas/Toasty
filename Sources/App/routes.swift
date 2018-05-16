@@ -7,11 +7,14 @@ public func routes(_ router: Router) throws {
 //    router.get("/") { req in
 //        return lwaButton
 //    }
+    let lwaClientId = Environment.get("LWA-CLIENTID") ?? "Client ID not found"
+    let lwaClientSecret = Environment.get("LWA-CLIENTSECRET") ?? "Client secret not found"
+    let siteUrl = Environment.get("SITE-URL") ?? "Site URL not found"
     router.get { req -> Future<View> in
         var context = [String: String]()
-        context["LWA-CLIENTID"] = Environment.get("LWA-CLIENTID")
-        context["LWA-CLIENTSECRET"] = Environment.get("LWA-CLIENTSECRET")
-        context["SITE-URL"] = Environment.get("SITE-URL")
+        context["LWA-CLIENTID"] = lwaClientId
+        context["LWA-CLIENTSECRET"] = lwaClientSecret
+        context["SITE-URL"] = siteUrl
         return try req.view().render("home", context)
     }
     
