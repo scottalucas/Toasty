@@ -14,7 +14,7 @@ d.getElementById('amazon-root').appendChild(a);
 })(document);
 
 </script>
-#embed(header)
+#embed("header")
 
 <a href="#" id="LoginWithAmazon">
 <img border="0" alt="Login with Amazon"
