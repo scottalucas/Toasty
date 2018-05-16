@@ -6,20 +6,35 @@ public func routes(_ router: Router) throws {
     // Basic "Hello, world!" example
 //    router.get("/") { req in
 //        return lwaButton
-//    }
+//    }ProcessInfo.processInfo.environment[key]
     let lwaClientId = Environment.get("LWA-CLIENTID") ?? "Client ID not found"
-    logger.info("Client id: \(lwaClientId)")
-    let lwaClientSecret = Environment.get("LWA-CLIENTSECRET") ?? "Client secret not found"
-    logger.info("Client sec: \(lwaClientSecret)")
-    let siteUrl = Environment.get("SITE-URL") ?? "Site URL not found"
-    logger.info("Site url: \(siteUrl)")
+    let lwaClientIdRaw = ProcessInfo.processInfo.environment["LWA-CLIENTID"] ?? "Client ID not found"
+    let lwaClientId2 = Environment.get("LWA-CLIENT") ?? "Client ID2 not found"
+    let lwaClientId2Raw = ProcessInfo.processInfo.environment["LWA-CLIENT"] ?? "Client ID2 not found"
     let foo = Environment.get("FOO") ?? "FOO not found"
+    let fooRaw = ProcessInfo.processInfo.environment["FOO"] ?? "Foo not found"
+
+    logger.info("Client id: \(lwaClientId)")
+    logger.info("Client id raw: \(lwaClientIdRaw)")
+    logger.info("Client id 2: \(lwaClientId2)")
+    logger.info("Client id 2 raw: \(lwaClientId2Raw)")
+    logger.info("foo: \(foo)")
+    logger.info("foo raw: \(fooRaw)")
+
+//    let lwaClientSecret = Environment.get("LWA-CLIENTSECRET") ?? "Client secret not found"
+//    logger.info("Client sec: \(lwaClientSecret)")
+//    let siteUrl = Environment.get("SITE-URL") ?? "Site URL not found"
+//    logger.info("Site url: \(siteUrl)")
 
     router.get { req -> Future<View> in
         var context = [String: String]()
-        context["LWA-CLIENTID"] = lwaClientId
-        context["LWA-CLIENTSECRET"] = lwaClientSecret
-        context["SITE-URL"] = siteUrl
+        context["lwaClientId"] = lwaClientId
+        context["lwaClientIdRaw"] = lwaClientIdRaw
+        context["lwaClientId2"] = lwaClientId2
+        context["lwaClientId2Raw"] = lwaClientId2Raw
+        context["foo"] = foo
+        context["fooRaw"] = fooRaw
+
         context["foo"] = foo
         return try req.view().render("home", context)
     }
