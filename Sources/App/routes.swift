@@ -8,8 +8,11 @@ public func routes(_ router: Router) throws {
 //        return lwaButton
 //    }
     let lwaClientId = Environment.get("LWA-CLIENTID") ?? "Client ID not found"
+    logger.info("Client id: \(lwaClientId)")
     let lwaClientSecret = Environment.get("LWA-CLIENTSECRET") ?? "Client secret not found"
+    logger.info("Client sec: \(lwaClientSecret)")
     let siteUrl = Environment.get("SITE-URL") ?? "Site URL not found"
+    logger.info("Site url: \(siteUrl)")
     let foo = Environment.get("FOO") ?? "FOO not found"
 
     router.get { req -> Future<View> in
