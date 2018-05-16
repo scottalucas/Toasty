@@ -1,0 +1,8 @@
+<h1>ENV variables</h1>
+<p>Client: #(lwaClientId)</p>
+<p>Client raw: #(lwaClientIdRaw)</p>
+<p>Client2: #(lwaClientId2)</p>
+<p>Client2 raw: #(lwaClientId2Raw)</p>
+<p>foo: #(foo)</p>
+<p>foo raw: #(fooRaw)</p>
+
