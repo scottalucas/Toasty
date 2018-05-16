@@ -14,11 +14,11 @@ struct AlexaController: RouteCollection {
             debugPrint ("Hit on the post.")
             return "Hello! You got Alexa controller! Foo is \(foo ?? "Not found")"
     }
-        func discoveryHandler (_ req: Request, message: AlexaMessage) throws -> (AlexaTestMessage) {
-            let token = message.directive.payload.scope?.token ?? "No token"
+        func discoveryHandler (_ req: Request) throws -> (AlexaTestMessage) {
+            let msgJSON = req.http.body.debugDescription
             logger.debug("Request in discovery handler: \(req.debugDescription)")
-            logger.debug("Token in discovery hander: \(token)")
-            return AlexaTestMessage(testMessage: token)
+            logger.debug("JSON in discovery hander: \(msgJSON)")
+            return AlexaTestMessage(testMessage: msgJSON)
         }
 
 //        }
@@ -94,7 +94,7 @@ struct AlexaController: RouteCollection {
 //        }
         
         alexaRoutes.get(use: helloHandler)
-        alexaRoutes.post(AlexaMessage.self, at: "Discovery", use: discoveryHandler)
+        alexaRoutes.post("Discovery", use: discoveryHandler)
 
 //        acronymsRoutes.get(Acronym.parameter, use: getHandler)
 //        acronymsRoutes.put(Acronym.parameter, use: updateHandler)

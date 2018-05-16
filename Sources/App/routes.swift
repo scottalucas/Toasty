@@ -5,8 +5,13 @@ import Vapor
 public func routes(_ router: Router) throws {
     // Basic "Hello, world!" example
     router.get("/") { req in
-        return "Hello version 0.23"
-//        print("Hello version 1.0")
+        return lwaButton
+    }
+    
+    router.post("PostTest") { req -> String in
+        let retText = "post test route"
+        logger.info("Hit post test route.")
+        return retText
     }
     
     let alexaController = AlexaController()

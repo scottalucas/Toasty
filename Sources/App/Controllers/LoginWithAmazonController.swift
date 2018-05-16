@@ -3,7 +3,7 @@ import Fluent
 import CNIOHTTPParser
 
 struct LoginWithAmazonController: RouteCollection {
-    let logger = PrintLogger()
+//    let logger = PrintLogger()
 
     func boot(router: Router) throws {
     
@@ -93,8 +93,9 @@ struct LoginWithAmazonController: RouteCollection {
         //        }
         
         loginWithAmazonRoutes.get(use: helloHandler)
-        loginWithAmazonRoutes.post(LWAAccessToken.self, at: "NewAccount", use: newAccountHandler)
-        
+//        loginWithAmazonRoutes.post(LWAAccessToken.self, at: "NewAccount", use: newAccountHandler)
+//        loginWithAmazonRoutes.post("NewAccount", use: newAccountHandler)
+
         //        acronymsRoutes.get(Acronym.parameter, use: getHandler)
         //        acronymsRoutes.put(Acronym.parameter, use: updateHandler)
         //        acronymsRoutes.delete(Acronym.parameter, use: deleteHandler)
