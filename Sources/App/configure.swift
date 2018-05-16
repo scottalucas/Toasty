@@ -1,5 +1,6 @@
 import FluentPostgreSQL
 import Vapor
+import Leaf
 
 public func configure(
     _ config: inout Config,
@@ -14,6 +15,9 @@ public func configure(
     var middlewares = MiddlewareConfig()
     middlewares.use(ErrorMiddleware.self)
     services.register(middlewares)
+    
+    try services.register(LeafProvider())
+    config.prefer(LeafRenderer.self, for: ViewRenderer.self)
     
     // Configure a database
     var databases = DatabasesConfig()
