@@ -25,7 +25,7 @@ width="156" height="32" />
 
 document.getElementById('LoginWithAmazon').onclick = function() {
 options = { scope : 'profile', popup : 'false'  };
-amazon.Login.authorize(options, 'https://#(SITE-URL)/LwaResponse');
+amazon.Login.authorize(options, 'https://#(SITE-URL)/PostTest');
 return false;
 };
 
