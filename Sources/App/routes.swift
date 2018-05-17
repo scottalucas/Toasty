@@ -4,6 +4,7 @@ import Vapor
 /// Register your application's routes here.
 public func routes(_ router: Router) throws {
     let logger = PrintLogger()
+    logger.info("Starting main router")
     router.get { req -> Future<View> in
         var context = [String: String]()
         context["LWA-CLIENTID"] = Environment.get("LWACLIENTID") ?? "Client ID not found."
@@ -14,17 +15,17 @@ public func routes(_ router: Router) throws {
     
     router.get("LwaResponse", AccessResponse.parameter) { req -> String in
         let accessValue:AccessResponse = try req.parameters.next()
-        let retVal = req.http.body.debugDescription
         logger.info("Hit LwaResponse leaf.")
         logger.info("Headers: \(req.http.headers.debugDescription)")
         logger.info("Method: \(req.http.method)")
         logger.info("URL: \(req.http.urlString)")
+        logger.info("Body: \(req.http.body.debugDescription)")
+
         logger.info("Access response key: \(accessValue.access_token.debugDescription)")
         logger.info("Access response expires: \(accessValue.expires_in.debugDescription)")
         logger.info("Access response refresh token: \(accessValue.refresh_token.debugDescription)")
-        logger.info("Access response token type: \(accessValue.token_type)")
-
-        return retVal
+        logger.info("Access response token type: \(accessValue.token_type ?? "Token not found")")
+        return "Hit LwaResponse leaf."
     }
     
     router.post("PostTest") { req -> String in
