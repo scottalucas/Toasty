@@ -19,10 +19,10 @@ public func routes(_ router: Router) throws {
     router.get { req -> Future<View> in
         logger.info("ONE")
 
-        let lwaClientId = Environment.get("LWA-CLIENTID") ?? "Client ID not found"
-        let lwaClientIdRaw = ProcessInfo.processInfo.environment["LWA-CLIENTID"] ?? "Client ID not found"
-        let lwaClientId2 = Environment.get("LWA-CLIENT") ?? "Client ID2 not found"
-        let lwaClientId2Raw = ProcessInfo.processInfo.environment["LWA-CLIENT"] ?? "Client ID2 not found"
+        let lwaClientId = Environment.get("LWACLIENTID") ?? "Client ID not found"
+        let lwaClientIdRaw = ProcessInfo.processInfo.environment["LWACLIENTID"] ?? "Client ID not found"
+        let lwaClientId2 = Environment.get("LWACLIENTSECRET") ?? "Client secret not found"
+        let lwaClientId2Raw = ProcessInfo.processInfo.environment["LWACLIENTSECRET"] ?? "Client secret not found"
         let foo = Environment.get("FOO") ?? "FOO not found"
         let fooRaw = ProcessInfo.processInfo.environment["FOO"] ?? "Foo not found"
         var context = [String: String]()
