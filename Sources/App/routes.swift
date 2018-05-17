@@ -12,14 +12,16 @@ public func routes(_ router: Router) throws {
         return try req.view().render("home", context)
     }
     
-    router.get("LwaResponse") { req -> String in
+    router.post("LwaResponse") { req -> String in
         let retVal = req.http.body.debugDescription
+        logger.info(retVal)
         return retVal
     }
     
     router.post("PostTest") { req -> String in
         let retText = "post test route"
         logger.info("Hit post test route.")
+        logger.info(req.http.body.debugDescription)
         return retText
     }
     
