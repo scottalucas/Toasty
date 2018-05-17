@@ -107,4 +107,20 @@ struct LoginWithAmazonController: RouteCollection {
     
 }
 
+struct AccessResponse: Parameter {
+    
+    var access_token: String
+    var token_type: String?
+    var expires_in: Int?
+    var refresh_token: String?
+    
+    init (id: String) {
+        access_token = id
+    }
+
+    static func resolveParameter(_ parameter: String, on container: Container) throws -> AccessResponse {
+        return AccessResponse(id: parameter)
+    }
+}
+
 
