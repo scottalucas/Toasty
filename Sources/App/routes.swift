@@ -14,11 +14,11 @@ public func routes(_ router: Router) throws {
     }
     
     router.get("LwaResponse") { req -> String in
-        debugPrint("Hit LwaResponse leaf.")
-        debugPrint("Headers: \(req.http.headers.debugDescription)")
-        debugPrint("Method: \(req.http.method)")
-        debugPrint("URL: \(req.http.urlString)")
-        debugPrint("Body: \(req.http.body.debugDescription)")
+        logger.info("Hit LwaResponse leaf.")
+        logger.info("Headers: \(req.http.headers.debugDescription)")
+        logger.info("Method: \(req.http.method)")
+        logger.info("URL: \(req.http.urlString)")
+        logger.info("Body: \(req.http.body.debugDescription)")
 
 //        logger.info("Access response key: \(accessValue.access_token.debugDescription)")
 //        logger.info("Access response expires: \(accessValue.expires_in.debugDescription)")
