@@ -14,17 +14,17 @@ public func routes(_ router: Router) throws {
     }
     
     router.get("LwaResponse") { req -> String in
-        logger.info("Hit LwaResponse leaf.")
-        logger.info("Headers: \(req.http.headers.debugDescription)")
-        logger.info("Method: \(req.http.method)")
-        logger.info("URL: \(req.http.urlString)")
-        logger.info("Body: \(req.http.body.debugDescription)")
+        debugPrint("Hit LwaResponse leaf.")
+        debugPrint("Headers: \(req.http.headers.debugDescription)")
+        debugPrint("Method: \(req.http.method)")
+        debugPrint("URL: \(req.http.urlString)")
+        debugPrint("Body: \(req.http.body.debugDescription)")
 
 //        logger.info("Access response key: \(accessValue.access_token.debugDescription)")
 //        logger.info("Access response expires: \(accessValue.expires_in.debugDescription)")
 //        logger.info("Access response refresh token: \(accessValue.refresh_token.debugDescription)")
 //        logger.info("Access response token type: \(accessValue.token_type ?? "Token not found")")
-        return "Hit LwaResponse leaf."
+        return "Hit LwaResponse leaf, Headers: \(req.http.headers.debugDescription)\rMethod: \(req.http.method)\rURL: \(req.http.urlString)\rURL: \(req.http.urlString)\rBody: \(req.http.body.debugDescription)"
     }
     
     router.post("PostTest") { req -> String in
