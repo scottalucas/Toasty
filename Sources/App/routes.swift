@@ -3,12 +3,11 @@ import Vapor
 
 /// Register your application's routes here.
 public func routes(_ router: Router) throws {
-    let logger = PrintLogger()
-    logger.info("Starting main router")
+    Swift.print("Starting main router")
     
     router.get {req -> Response in
 //        let logger = PrintLogger()
-        logger.info("Main get")
+        Swift.print("Main get")
         guard let site = Environment.get("SITEURL") else {throw Abort(.notImplemented)}
         return req.redirect(to: "\(site)/lwa/login")
     }

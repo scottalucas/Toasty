@@ -1,23 +1,20 @@
 import Vapor
 import Fluent
-import CNIOHTTPParser
+//import CNIOHTTPParser
 
 struct LoginWithAmazonController: RouteCollection {
-    let logger = PrintLogger()
 
     func boot(router: Router) throws {
-    
+
         let loginWithAmazonRoutes = router.grouped("lwa")
         
         func helloHandler (_ req: Request) -> String {
-            let logger = PrintLogger()
-            logger.info("Hit LWA base route.")
+            Swift.print("Hit LWA base route.")
             return "Hello! You got LWA!"
         }
         
         func loginHandler (_ req: Request) throws -> Future<View> {
-            let logger = PrintLogger()
-            logger.info("Hit LWA login route.")
+            Swift.print("Hit LWA login route.")
             var context = [String: String]()
             context["LWA-CLIENTID"] = Environment.get("LWACLIENTID") ?? "Client ID not found."
             context["LWA-CLIENTSECRET"] = Environment.get("LWACLIENTSECRET") ?? "Client secret not found"
@@ -26,16 +23,15 @@ struct LoginWithAmazonController: RouteCollection {
         }
         
         func authHandler (_ req: Request) throws -> Future<String> {
-            let logger = PrintLogger()
-            logger.info("Hit authHandler leaf start.")
+            Swift.print("Hit authHandler leaf start.")
             let authResp = try req.query.decode(LWAAccessAuth.self)
             let client = try req.make(Client.self)
             return client.post("https://api.amazon.com/auth/o2/token") { post in
                 try post.content.encode(LWAAccessRequest(code: authResp.code, redirect_uri: "\(Environment.get("SITEURL") ?? "url not available")/lwa/access", client_id: "\(Environment.get("LWACLIENTID") ?? "Client id not available")", client_secret: "\(Environment.get("LWACLIENTSECRET") ?? "Client secret not available")"))
             }.map (to: String.self) { res in
-                self.logger.info("Hit after auth resp.")
-                self.logger.info("Headers: \(res.http.headers.debugDescription)")
-                self.logger.info("Body: \(res.http.body.debugDescription)")
+                Swift.print("Hit after auth resp.")
+                Swift.print("Headers: \(res.http.headers.debugDescription)")
+                Swift.print("Body: \(res.http.body.debugDescription)")
                 return "Hit LwaResponse leaf, Headers: \(res.http.headers.debugDescription)\nDescription: \(res.http.description)\nStatus: \(res.http.status)\nBody: \(res.http.body.debugDescription)"
             }
         }
@@ -61,17 +57,6 @@ struct LoginWithAmazonController: RouteCollection {
         loginWithAmazonRoutes.get("auth", use: authHandler)
         loginWithAmazonRoutes.post("access", use: accessHandler)
         loginWithAmazonRoutes.get("login", use: loginHandler)
-
-        //        loginWithAmazonRoutes.post(LWAAccessToken.self, at: "NewAccount", use: newAccountHandler)
-//        loginWithAmazonRoutes.post("NewAccount", use: newAccountHandler)
-
-        //        acronymsRoutes.get(Acronym.parameter, use: getHandler)
-        //        acronymsRoutes.put(Acronym.parameter, use: updateHandler)
-        //        acronymsRoutes.delete(Acronym.parameter, use: deleteHandler)
-        //        acronymsRoutes.get("search", use: searchHandler)
-        //        acronymsRoutes.get("first", use: getFirstHandler)
-        //        acronymsRoutes.get("sorted", use: sortedHandler)
-        //        acronymsRoutes.get(Acronym.parameter, "user", use: getUserHandler)
     }
     
 }
