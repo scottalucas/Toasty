@@ -7,14 +7,32 @@ struct LoginWithAmazonController: RouteCollection {
 
     func boot(router: Router) throws {
     
-        let loginWithAmazonRoutes = router.grouped("LoginWithAmazon")
+        let loginWithAmazonRoutes = router.grouped("lwa")
         
         func helloHandler (_ req: Request) -> String {
             logger.info("Hit LWA base route.")
             print("print Hit LWA base route.")
             return "Hello! You got LWA!"
         }
-
+        func authHandler (_ req: Request) throws -> String {
+            let authResp = try req.query.decode(LWAAccessAuth.self)
+            logger.info("Hit LwaResponse leaf.")
+            logger.info("Headers: \(req.http.headers.debugDescription)")
+            logger.info("Method: \(req.http.method)")
+            logger.info("URL: \(req.http.urlString)")
+            logger.info("Body: \(req.http.body.debugDescription)")
+            return "Hit LwaResponse leaf, Headers: \(req.http.headers.debugDescription)\nMethod: \(req.http.method)\nURL: \(req.http.urlString)\nURL: \(req.http.urlString)\nBody: \(req.http.body.debugDescription)\nCode: \(authResp.code)\nSource record: \(authResp.state)"
+        }
+        
+        func accessHandler (_ req: Request) throws -> String {
+            let retText = "post test route"
+            logger.info("Hit post test route.")
+            logger.info("Headers: \(req.http.headers.debugDescription)")
+            logger.info("Method: \(req.http.method)")
+            logger.info("URL: \(req.http.urlString)")
+            return retText
+        }
+        
         func newAccountHandler (_ req: Request, accessToken: LWAAccessToken) -> String {
             let body = req.http.body.debugDescription
             logger.info("HTTP body in new account linker: \(body)")
@@ -92,7 +110,8 @@ struct LoginWithAmazonController: RouteCollection {
         //            }
         //        }
         
-        loginWithAmazonRoutes.get(use: helloHandler)
+        loginWithAmazonRoutes.get("auth", use: authHandler)
+        loginWithAmazonRoutes.get("access", use: accessHandler)
 //        loginWithAmazonRoutes.post(LWAAccessToken.self, at: "NewAccount", use: newAccountHandler)
 //        loginWithAmazonRoutes.post("NewAccount", use: newAccountHandler)
 

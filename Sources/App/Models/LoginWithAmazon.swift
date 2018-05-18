@@ -13,6 +13,7 @@ import FluentPostgreSQL
 struct LWAAccessAuth : Content {
     var code:String
     var state:String
+    var scope:String
 }
 
 struct LWAUserScope:Content {
