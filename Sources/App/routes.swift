@@ -12,6 +12,11 @@ public func routes(_ router: Router) throws {
 //        context["SITE-URL"] = Environment.get("SITEURL") ?? "Site url not found"
 //        return try req.view().render("home", context)
 //    }
+    
+    router.get {req -> Response in
+        guard let site = Environment.get("SITEURL") else {throw Abort(.badGateway)}
+        return req.redirect(to: "https://\(site)/lwa/login)")
+    }
 
     let alexaController = AlexaController()
     let usersController = UsersController()

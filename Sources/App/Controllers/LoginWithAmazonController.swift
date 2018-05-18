@@ -14,6 +14,15 @@ struct LoginWithAmazonController: RouteCollection {
             print("print Hit LWA base route.")
             return "Hello! You got LWA!"
         }
+        
+        func loginHandler (_ req: Request) throws -> Future<View> {
+            var context = [String: String]()
+            context["LWA-CLIENTID"] = Environment.get("LWACLIENTID") ?? "Client ID not found."
+            context["LWA-CLIENTSECRET"] = Environment.get("LWACLIENTSECRET") ?? "Client secret not found"
+            context["SITE-URL"] = Environment.get("SITEURL") ?? "Site url not found"
+            return try req.view().render("home", context)
+        }
+        
         func authHandler (_ req: Request) throws -> String {
             let authResp = try req.query.decode(LWAAccessAuth.self)
             logger.info("Hit LwaResponse leaf.")
@@ -112,7 +121,9 @@ struct LoginWithAmazonController: RouteCollection {
         
         loginWithAmazonRoutes.get("auth", use: authHandler)
         loginWithAmazonRoutes.get("access", use: accessHandler)
-//        loginWithAmazonRoutes.post(LWAAccessToken.self, at: "NewAccount", use: newAccountHandler)
+        loginWithAmazonRoutes.get("login", use: loginHandler)
+
+        //        loginWithAmazonRoutes.post(LWAAccessToken.self, at: "NewAccount", use: newAccountHandler)
 //        loginWithAmazonRoutes.post("NewAccount", use: newAccountHandler)
 
         //        acronymsRoutes.get(Acronym.parameter, use: getHandler)
