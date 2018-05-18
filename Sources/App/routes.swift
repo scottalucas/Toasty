@@ -3,7 +3,7 @@ import Vapor
 
 /// Register your application's routes here.
 public func routes(_ router: Router) throws {
-    let logger = PrintLogger()
+//    let logger = PrintLogger()
     logger.info("Starting main router")
 //    router.get { req -> Future<View> in
 //        var context = [String: String]()

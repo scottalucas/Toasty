@@ -16,6 +16,7 @@ struct LoginWithAmazonController: RouteCollection {
         }
         
         func loginHandler (_ req: Request) throws -> Future<View> {
+            logger.info("Hit LWA login route.")
             var context = [String: String]()
             context["LWA-CLIENTID"] = Environment.get("LWACLIENTID") ?? "Client ID not found."
             context["LWA-CLIENTSECRET"] = Environment.get("LWACLIENTSECRET") ?? "Client secret not found"
@@ -24,22 +25,17 @@ struct LoginWithAmazonController: RouteCollection {
         }
         
         func authHandler (_ req: Request) throws -> Future<String> {
+            logger.info("Hit authHandler leaf start.")
             let authResp = try req.query.decode(LWAAccessAuth.self)
             let client = try req.make(Client.self)
             return client.post("https://api.amazon.com/auth/o2/token") { post in
                 try post.content.encode(LWAAccessRequest(code: authResp.code, redirect_uri: "\(Environment.get("SITEURL") ?? "url not available")/lwa/access", client_id: "\(Environment.get("LWACLIENTID") ?? "Client id not available")", client_secret: "\(Environment.get("LWACLIENTSECRET") ?? "Client secret not available")"))
             }.map (to: String.self) { res in
-                    return "Hit LwaResponse leaf, Headers: \(res.http.headers.debugDescription)\nDescription: \(res.http.description)\nStatus: \(res.http.status)\nBody: \(res.http.body.debugDescription)"
+                logger.info("Hit after auth resp.")
+                logger.info("Headers: \(res.http.headers.debugDescription)")
+                logger.info("Body: \(res.http.body.debugDescription)")
+                return "Hit LwaResponse leaf, Headers: \(res.http.headers.debugDescription)\nDescription: \(res.http.description)\nStatus: \(res.http.status)\nBody: \(res.http.body.debugDescription)"
             }
-//
-//            logger.info("Hit LwaResponse leaf.")
-//            logger.info("Headers: \(req.http.headers.debugDescription)")
-//            logger.info("Method: \(req.http.method)")
-//            logger.info("URL: \(req.http.urlString)")
-//            logger.info("Body: \(req.http.body.debugDescription)")
-//            
-//            return
-
         }
         
         func accessHandler (_ req: Request) throws -> String {

@@ -3,7 +3,6 @@ import Fluent
 import CNIOHTTPParser
 
 struct AlexaController: RouteCollection {
-    let logger = PrintLogger()
     let foo = Environment.get("FOO")
     func boot(router: Router) throws {
         let alexaRoutes = router.grouped("Alexa")
