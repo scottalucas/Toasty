@@ -23,14 +23,23 @@ struct LoginWithAmazonController: RouteCollection {
             return try req.view().render("home", context)
         }
         
-        func authHandler (_ req: Request) throws -> String {
+        func authHandler (_ req: Request) throws -> Future<String> {
             let authResp = try req.query.decode(LWAAccessAuth.self)
-            logger.info("Hit LwaResponse leaf.")
-            logger.info("Headers: \(req.http.headers.debugDescription)")
-            logger.info("Method: \(req.http.method)")
-            logger.info("URL: \(req.http.urlString)")
-            logger.info("Body: \(req.http.body.debugDescription)")
-            return "Hit LwaResponse leaf, Headers: \(req.http.headers.debugDescription)\nMethod: \(req.http.method)\nURL: \(req.http.urlString)\nURL: \(req.http.urlString)\nBody: \(req.http.body.debugDescription)\nCode: \(authResp.code)\nSource record: \(authResp.state)"
+            let client = try req.make(Client.self)
+            return client.post("https://api.amazon.com/auth/o2/token") { post in
+                try post.content.encode(LWAAccessRequest(code: authResp.code, redirect_uri: "\(Environment.get("SITEURL") ?? "url not available")/lwa/access", client_id: "\(Environment.get("LWACLIENTID") ?? "Client id not available")", client_secret: "\(Environment.get("LWACLIENTSECRET") ?? "Client secret not available")"))
+            }.map (to: String.self) { res in
+                    return "Hit LwaResponse leaf, Headers: \(res.http.headers.debugDescription)\nDescription: \(res.http.description)\nStatus: \(res.http.status)\nBody: \(res.http.body.debugDescription)"
+            }
+//
+//            logger.info("Hit LwaResponse leaf.")
+//            logger.info("Headers: \(req.http.headers.debugDescription)")
+//            logger.info("Method: \(req.http.method)")
+//            logger.info("URL: \(req.http.urlString)")
+//            logger.info("Body: \(req.http.body.debugDescription)")
+//            
+//            return
+
         }
         
         func accessHandler (_ req: Request) throws -> String {
