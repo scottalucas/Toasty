@@ -14,6 +14,7 @@ public func routes(_ router: Router) throws {
 //    }
     
     router.get {req -> Response in
+        logger.info("Main get")
         guard let site = Environment.get("SITEURL") else {throw Abort(.badGateway)}
         return req.redirect(to: "\(site)/lwa/login")
     }
