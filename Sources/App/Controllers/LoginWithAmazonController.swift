@@ -10,11 +10,13 @@ struct LoginWithAmazonController: RouteCollection {
         let loginWithAmazonRoutes = router.grouped("lwa")
         
         func helloHandler (_ req: Request) -> String {
+            let logger = PrintLogger()
             logger.info("Hit LWA base route.")
             return "Hello! You got LWA!"
         }
         
         func loginHandler (_ req: Request) throws -> Future<View> {
+            let logger = PrintLogger()
             logger.info("Hit LWA login route.")
             var context = [String: String]()
             context["LWA-CLIENTID"] = Environment.get("LWACLIENTID") ?? "Client ID not found."
@@ -24,6 +26,7 @@ struct LoginWithAmazonController: RouteCollection {
         }
         
         func authHandler (_ req: Request) throws -> Future<String> {
+            let logger = PrintLogger()
             logger.info("Hit authHandler leaf start.")
             let authResp = try req.query.decode(LWAAccessAuth.self)
             let client = try req.make(Client.self)
@@ -38,6 +41,7 @@ struct LoginWithAmazonController: RouteCollection {
         }
         
         func accessHandler (_ req: Request) throws -> String {
+            let logger = PrintLogger()
             let retText = "post test route"
             logger.info("Hit post test route.")
             logger.info("Headers: \(req.http.headers.debugDescription)")
@@ -47,6 +51,7 @@ struct LoginWithAmazonController: RouteCollection {
         }
         
         func newAccountHandler (_ req: Request, accessToken: LWAAccessToken) -> String {
+            let logger = PrintLogger()
             let body = req.http.body.debugDescription
             logger.info("HTTP body in new account linker: \(body)")
             return body
