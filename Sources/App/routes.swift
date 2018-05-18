@@ -7,7 +7,7 @@ public func routes(_ router: Router) throws {
     logger.info("Starting main router")
     
     router.get {req -> Response in
-        let logger = PrintLogger()
+//        let logger = PrintLogger()
         logger.info("Main get")
         guard let site = Environment.get("SITEURL") else {throw Abort(.notImplemented)}
         return req.redirect(to: "\(site)/lwa/login")
