@@ -15,7 +15,7 @@ public func routes(_ router: Router) throws {
     
     router.get {req -> Response in
         guard let site = Environment.get("SITEURL") else {throw Abort(.badGateway)}
-        return req.redirect(to: "https://\(site)/lwa/login)")
+        return req.redirect(to: "\(site)/lwa/login")
     }
 
     let alexaController = AlexaController()

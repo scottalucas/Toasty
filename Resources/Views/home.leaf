@@ -25,7 +25,7 @@ width="156" height="32" />
 
 document.getElementById('LoginWithAmazon').onclick = function() {
 options = { scope : 'profile', interactive : 'always', response_type : 'code', state : 'user-id' };
-    amazon.Login.authorize(options, 'https://#(SITE-URL)/lwa/auth');
+    amazon.Login.authorize(options, '#(SITE-URL)/lwa/auth');
     return false;
 };
 
