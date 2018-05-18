@@ -9,12 +9,20 @@ import Foundation
 import Vapor
 import FluentPostgreSQL
 
+//parameter types
+struct LWAAccessAuth : Content {
+    var code:String
+    var state:String
+}
+
 struct LWAUserScope:Content {
     var user_id: String
     var email: String?
     var name: String?
     var postal_code: String?
 }
+
+
 
 struct LWAAccessToken: Content {
     var access_token: String

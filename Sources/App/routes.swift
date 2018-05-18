@@ -13,18 +13,16 @@ public func routes(_ router: Router) throws {
         return try req.view().render("home", context)
     }
     
-    router.get("LwaResponse") { req -> String in
-        logger.info("Hit LwaResponse leaf.")
-        logger.info("Headers: \(req.http.headers.debugDescription)")
-        logger.info("Method: \(req.http.method)")
-        logger.info("URL: \(req.http.urlString)")
-        logger.info("Body: \(req.http.body.debugDescription)")
-
-//        logger.info("Access response key: \(accessValue.access_token.debugDescription)")
-//        logger.info("Access response expires: \(accessValue.expires_in.debugDescription)")
-//        logger.info("Access response refresh token: \(accessValue.refresh_token.debugDescription)")
-//        logger.info("Access response token type: \(accessValue.token_type ?? "Token not found")")
-        return "Hit LwaResponse leaf, Headers: \(req.http.headers.debugDescription)\rMethod: \(req.http.method)\rURL: \(req.http.urlString)\rURL: \(req.http.urlString)\rBody: \(req.http.body.debugDescription)"
+    router.get("LwaResponse") { req -> Future<String> in
+        return try req.content.decode(LWAAccessAuth.self)
+            .map(to: String.self) {codeObj in
+                logger.info("Hit LwaResponse leaf.")
+                logger.info("Headers: \(req.http.headers.debugDescription)")
+                logger.info("Method: \(req.http.method)")
+                logger.info("URL: \(req.http.urlString)")
+                logger.info("Body: \(req.http.body.debugDescription)")
+                return "Hit LwaResponse leaf, Headers: \(req.http.headers.debugDescription)\nMethod: \(req.http.method)\nURL: \(req.http.urlString)\nURL: \(req.http.urlString)\nBody: \(req.http.body.debugDescription)\nCode: \(codeObj.code)\n"
+        }
     }
     
     router.post("PostTest") { req -> String in
