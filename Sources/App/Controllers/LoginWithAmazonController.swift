@@ -3,7 +3,7 @@ import Fluent
 import CNIOHTTPParser
 
 struct LoginWithAmazonController: RouteCollection {
-//    let logger = PrintLogger()
+    let logger = PrintLogger()
 
     func boot(router: Router) throws {
     
@@ -30,9 +30,9 @@ struct LoginWithAmazonController: RouteCollection {
             return client.post("https://api.amazon.com/auth/o2/token") { post in
                 try post.content.encode(LWAAccessRequest(code: authResp.code, redirect_uri: "\(Environment.get("SITEURL") ?? "url not available")/lwa/access", client_id: "\(Environment.get("LWACLIENTID") ?? "Client id not available")", client_secret: "\(Environment.get("LWACLIENTSECRET") ?? "Client secret not available")"))
             }.map (to: String.self) { res in
-                logger.info("Hit after auth resp.")
-                logger.info("Headers: \(res.http.headers.debugDescription)")
-                logger.info("Body: \(res.http.body.debugDescription)")
+                self.logger.info("Hit after auth resp.")
+                self.logger.info("Headers: \(res.http.headers.debugDescription)")
+                self.logger.info("Body: \(res.http.body.debugDescription)")
                 return "Hit LwaResponse leaf, Headers: \(res.http.headers.debugDescription)\nDescription: \(res.http.description)\nStatus: \(res.http.status)\nBody: \(res.http.body.debugDescription)"
             }
         }
