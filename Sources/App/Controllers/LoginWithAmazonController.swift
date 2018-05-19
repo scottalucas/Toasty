@@ -45,11 +45,21 @@ struct LoginWithAmazonController: RouteCollection {
         }
         
         func accessHandler (_ req: Request) throws -> String {
-            let retText = "post test route"
-            logger.info("Hit post test route.")
-            logger.info("Headers: \(req.http.headers.debugDescription)")
-            logger.info("Method: \(req.http.method)")
-            logger.info("URL: \(req.http.urlString)")
+            var retText = "post test route"
+            var plog:PrintLogger = PrintLogger()
+            do { plog = try req.make(PrintLogger.self)
+            } catch { retText += " failed to make print logger"}
+//            do { log = try req.make(Logger.self)
+//            } catch { retText += " failed to make logger."}
+
+//            log.info("Hit post test route.")
+//            log.info("Headers: \(req.http.headers.debugDescription)")
+//            log.info("Method: \(req.http.method)")
+//            log.info("URL: \(req.http.urlString)")
+            plog.info("Plog Hit post test route.")
+            plog.info("Plog Headers: \(req.http.headers.debugDescription)")
+            plog.info("Plog Method: \(req.http.method)")
+            plog.info("Plog URL: \(req.http.urlString)")
             return retText
         }
         
