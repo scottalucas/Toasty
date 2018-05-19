@@ -27,7 +27,7 @@ struct LoginWithAmazonController: RouteCollection {
             let authResp = try req.query.decode(LWAAccessAuth.self)
             let client = try req.make(Client.self)
             return client.post("https://api.amazon.com/auth/o2/token") { post in
-                try post.content.encode(LWAAccessRequest(code: authResp.code, redirect_uri: "\(Environment.get("SITEURL") ?? "url not available")/lwa/access", client_id: "\(Environment.get("LWACLIENTID") ?? "Client id not available")", client_secret: "\(Environment.get("LWACLIENTSECRET") ?? "Client secret not available")"))
+                try post.content.encode(LWAAccessRequest(grant_type: "Authorization_code", code: authResp.code, redirect_uri: "\(Environment.get("SITEURL") ?? "url not available")/lwa/access", client_id: "\(Environment.get("LWACLIENTID") ?? "Client id not available")", client_secret: "\(Environment.get("LWACLIENTSECRET") ?? "Client secret not available")"))
                 }.map (to: String.self) { res in
                     Swift.print("Hit after auth resp.")
                     Swift.print("Headers: \(res.http.headers.debugDescription)")
