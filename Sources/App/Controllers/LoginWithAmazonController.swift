@@ -22,22 +22,21 @@ struct LoginWithAmazonController: RouteCollection {
             return try req.view().render("home", context)
         }
         
-        //        func authHandler (_ req: Request) throws -> Future<String> {
-        //            Swift.print("Hit authHandler leaf start.")
-        //            let authResp = try req.query.decode(LWAAccessAuth.self)
-        //            let client = try req.make(Client.self)
-        //            return client.post("https://api.amazon.com/auth/o2/token") { post in
-        //                try post.content.encode(LWAAccessRequest(code: authResp.code, redirect_uri: "\(Environment.get("SITEURL") ?? "url not available")/lwa/access", client_id: "\(Environment.get("LWACLIENTID") ?? "Client id not available")", client_secret: "\(Environment.get("LWACLIENTSECRET") ?? "Client secret not available")"))
-        //            }.map (to: String.self) { res in
-        //                Swift.print("Hit after auth resp.")
-        //                Swift.print("Headers: \(res.http.headers.debugDescription)")
-        //                Swift.print("Body: \(res.http.body.debugDescription)")
-        //                return "Hit LwaResponse leaf, Headers: \(res.http.headers.debugDescription)\nDescription: \(res.http.description)\nStatus: \(res.http.status)\nBody: \(res.http.body.debugDescription)"
-        //            }
-        //        }
+        func authHandler (_ req: Request) throws -> Future<String> {
+            Swift.print("Hit authHandler leaf start.")
+            let authResp = try req.query.decode(LWAAccessAuth.self)
+            let client = try req.make(Client.self)
+            return client.post("https://api.amazon.com/auth/o2/token") { post in
+                try post.content.encode(LWAAccessRequest(code: authResp.code, redirect_uri: "\(Environment.get("SITEURL") ?? "url not available")/lwa/access", client_id: "\(Environment.get("LWACLIENTID") ?? "Client id not available")", client_secret: "\(Environment.get("LWACLIENTSECRET") ?? "Client secret not available")"))
+                }.map (to: String.self) { res in
+                    Swift.print("Hit after auth resp.")
+                    Swift.print("Headers: \(res.http.headers.debugDescription)")
+                    Swift.print("Body: \(res.http.body.debugDescription)")
+                    return "Hit LwaResponse leaf, Headers: \(res.http.headers.debugDescription)\nDescription: \(res.http.description)\nStatus: \(res.http.status)\nBody: \(res.http.body.debugDescription)"
+            }
+        }
         
         func accessHandler (_ req: Request) throws -> String {
-            let logger = PrintLogger()
             let retText = "post test route"
             logger.info("Hit post test route.")
             logger.info("Headers: \(req.http.headers.debugDescription)")

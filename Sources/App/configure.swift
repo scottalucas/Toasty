@@ -18,8 +18,8 @@ public func configure(
 //
 //    services.register(PrintLogger())
 //
-//    try services.register(LeafProvider())
-//    config.prefer(LeafRenderer.self, for: ViewRenderer.self)
+    try services.register(LeafProvider())
+    config.prefer(LeafRenderer.self, for: ViewRenderer.self)
 //
 //    // Configure a database
 //    var databases = DatabasesConfig()
