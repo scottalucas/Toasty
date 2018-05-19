@@ -13,7 +13,7 @@ public func routes(_ router: Router) throws {
         Swift.print(logMsg)
         var context = [String: String]()
         context["MSG"] = "\(logMsg)"
-        guard let site = Environment.get("SITEURL") else {throw Abort(.notImplemented)}
+//        guard let site = Environment.get("SITEURL") else {throw Abort(.notImplemented)}
         //        return req.redirect(to: "\(site)/lwa/login")
         return try req.view().render("testFeedback", context)
         
