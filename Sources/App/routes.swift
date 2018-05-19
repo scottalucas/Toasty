@@ -6,8 +6,8 @@ public func routes(_ router: Router) throws {
 //    Swift.print("Starting main router")
     
     router.get {req -> String in
-//        let logger = try req.make(Logger.self)
-        Swift.print("Main get")
+        let logger = try req.make(PrintLogger.self)
+        logger.info("Main get")
         guard let site = Environment.get("SITEURL") else {throw Abort(.notImplemented)}
 //        return req.redirect(to: "\(site)/lwa/login")
         return "Hello from \(site)"
