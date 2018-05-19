@@ -10,7 +10,7 @@ import Vapor
 import FluentPostgreSQL
 
 //parameter types
-struct LWAAccessAuth : Content {
+struct LWAAccessRequest : Content {
     var code:String
     var state:String
     var scope:String
@@ -24,12 +24,20 @@ struct LWAUserScope:Content {
 }
 
 
-struct LWAAccessRequest: Content {
+struct LWAAuthRequest: Content {
     var grant_type: String
     var code: String
     var redirect_uri: String
     var client_id: String
     var client_secret: String
+    
+    init (codeIn: String, redirectUri: String, clientId: String, clientSecret: String) {
+        grant_type = "Authorization_code"
+        code = codeIn
+        redirect_uri = redirectUri
+        client_id = clientId
+        client_secret = clientSecret
+    }
 }
 
 struct LWAAccessToken: Content {
@@ -38,3 +46,4 @@ struct LWAAccessToken: Content {
     var expires_in: Int
     var refresh_token: String
 }
+

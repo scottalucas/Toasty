@@ -9,12 +9,12 @@ struct LoginWithAmazonController: RouteCollection {
         let loginWithAmazonRoutes = router.grouped("lwa")
         
         func helloHandler (_ req: Request) -> String {
-            Swift.print("Hit LWA base route.")
+            print("Hit LWA base route.")
             return "Hello! You got LWA!"
         }
         
         func loginHandler (_ req: Request) throws -> Future<View> {
-            Swift.print("Hit LWA login route.")
+            print("Hit LWA login route.")
             var context = [String: String]()
             context["LWA-CLIENTID"] = Environment.get("LWACLIENTID") ?? "Client ID not found."
             context["LWA-CLIENTSECRET"] = Environment.get("LWACLIENTSECRET") ?? "Client secret not found"
@@ -26,10 +26,16 @@ struct LoginWithAmazonController: RouteCollection {
             print("Hit authHandler leaf start.")
             print("Headers: \(req.http.headers.debugDescription)")
             print("Body: \(req.http.body.debugDescription)")
-            let authResp = try req.query.decode(LWAAccessAuth.self)
+            let authResp = try req.query.decode(LWAAccessRequest.self)
+            let authRequest = LWAAuthRequest.init(
+                codeIn: authResp.code,
+                redirectUri: "\(Environment.get("SITEURL") ?? "url not available")/lwa/access",
+                clientId: "\(Environment.get("LWACLIENTID") ?? "Client id not available")",
+                clientSecret: "\(Environment.get("LWACLIENTSECRET") ?? "Client secret not available")")
             let client = try req.make(Client.self)
+            print("Client services: \(client.container.services.description)")
             return client.post("https://api.amazon.com/auth/o2/token") { post in
-                try post.content.encode(LWAAccessRequest(grant_type: "Authorization_code", code: authResp.code, redirect_uri: "\(Environment.get("SITEURL") ?? "url not available")/lwa/auth", client_id: "\(Environment.get("LWACLIENTID") ?? "Client id not available")", client_secret: "\(Environment.get("LWACLIENTSECRET") ?? "Client secret not available")"))
+                try post.query.encode(authRequest)
                 }.map (to: String.self) { res in
                     print("Hit after auth resp.")
                     print("Headers: \(res.http.headers.debugDescription)")
@@ -77,6 +83,3 @@ struct AccessResponse: Parameter {
         return AccessResponse(id: parameter)
     }
 }
-
-
-
