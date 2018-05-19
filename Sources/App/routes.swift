@@ -4,10 +4,10 @@ import Fluent
 
 /// Register your application's routes here.
 public func routes(_ router: Router) throws {
-    let logger = PrintLogger()
     router.get {req -> Response in
+        let log = try req.make(Logger.self)
         let logMsg = "Tell me something."
-        logger.info(logMsg)
+        log.info(logMsg)
         Swift.print(logMsg)
         var context = [String: String]()
         context["MSG"] = "\(logMsg)"
