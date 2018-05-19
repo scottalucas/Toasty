@@ -23,15 +23,17 @@ struct LoginWithAmazonController: RouteCollection {
         }
         
         func authHandler (_ req: Request) throws -> Future<String> {
-            Swift.print("Hit authHandler leaf start.")
+            print("Hit authHandler leaf start.")
+            print("Headers: \(req.http.headers.debugDescription)")
+            print("Body: \(req.http.body.debugDescription)")
             let authResp = try req.query.decode(LWAAccessAuth.self)
             let client = try req.make(Client.self)
             return client.post("https://api.amazon.com/auth/o2/token") { post in
-                try post.content.encode(LWAAccessRequest(grant_type: "Authorization_code", code: authResp.code, redirect_uri: "\(Environment.get("SITEURL") ?? "url not available")/lwa/access", client_id: "\(Environment.get("LWACLIENTID") ?? "Client id not available")", client_secret: "\(Environment.get("LWACLIENTSECRET") ?? "Client secret not available")"))
+                try post.content.encode(LWAAccessRequest(grant_type: "Authorization_code", code: authResp.code, redirect_uri: "\(Environment.get("SITEURL") ?? "url not available")/lwa/auth", client_id: "\(Environment.get("LWACLIENTID") ?? "Client id not available")", client_secret: "\(Environment.get("LWACLIENTSECRET") ?? "Client secret not available")"))
                 }.map (to: String.self) { res in
-                    Swift.print("Hit after auth resp.")
-                    Swift.print("Headers: \(res.http.headers.debugDescription)")
-                    Swift.print("Body: \(res.http.body.debugDescription)")
+                    print("Hit after auth resp.")
+                    print("Headers: \(res.http.headers.debugDescription)")
+                    print("Body: \(res.http.body.debugDescription)")
                     return "Hit LwaResponse leaf, Headers: \(res.http.headers.debugDescription)\nDescription: \(res.http.description)\nStatus: \(res.http.status)\nBody: \(res.http.body.debugDescription)"
             }
         }
