@@ -4,8 +4,7 @@ import Fluent
 
 /// Register your application's routes here.
 public func routes(_ router: Router) throws {
-    Swift.print("Starting main router")
-    
+    let logger = PrintLogger()
     router.get {req -> Response in
         let logMsg = "Tell me something."
         logger.info(logMsg)
