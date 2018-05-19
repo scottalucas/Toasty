@@ -53,7 +53,7 @@ struct LoginWithAmazonController: RouteCollection {
         //        }
         
         loginWithAmazonRoutes.get("hello", use: helloHandler)
-        //        loginWithAmazonRoutes.get("auth", use: authHandler)
+        loginWithAmazonRoutes.get("auth", use: authHandler)
         loginWithAmazonRoutes.post("access", use: accessHandler)
         loginWithAmazonRoutes.get("login", use: loginHandler)
     }
