@@ -16,8 +16,10 @@ public func configure(
     middlewares.use(ErrorMiddleware.self)
     services.register(middlewares)
 //
-    services.register(PrintLogger(), as: PrintLogger.self)
-//
+    services.register(Logger.self) { container in
+        return PrintLogger()
+    }
+    //
     try services.register(LeafProvider())
     config.prefer(LeafRenderer.self, for: ViewRenderer.self)
 //

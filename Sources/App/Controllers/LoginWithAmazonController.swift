@@ -52,10 +52,10 @@ struct LoginWithAmazonController: RouteCollection {
 //            do { log = try req.make(Logger.self)
 //            } catch { retText += " failed to make logger."}
 
-//            log.info("Hit post test route.")
-//            log.info("Headers: \(req.http.headers.debugDescription)")
-//            log.info("Method: \(req.http.method)")
-//            log.info("URL: \(req.http.urlString)")
+            print("Hit post test route.")
+            print("Headers: \(req.http.headers.debugDescription)")
+            print("Method: \(req.http.method)")
+            print("URL: \(req.http.urlString)")
             plog.info("Plog Hit post test route.")
             plog.info("Plog Headers: \(req.http.headers.debugDescription)")
             plog.info("Plog Method: \(req.http.method)")
