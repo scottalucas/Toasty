@@ -5,11 +5,12 @@ import Vapor
 public func routes(_ router: Router) throws {
     Swift.print("Starting main router")
     
-    router.get {req -> Response in
+    router.get {req -> String in
         let logger = try req.make(Logger.self)
         logger.info("Main get")
-        guard let site = Environment.get("SITEURL") else {throw Abort(.notImplemented)}
-        return req.redirect(to: "\(site)/lwa/login")
+        return "Hello"
+//        guard let site = Environment.get("SITEURL") else {throw Abort(.notImplemented)}
+//        return req.redirect(to: "\(site)/lwa/login")
     }
 
     let alexaController = AlexaController()
