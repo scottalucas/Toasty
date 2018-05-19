@@ -25,7 +25,7 @@ struct LWAUserScope:Content {
 
 
 struct LWAAccessRequest: Content {
-    static let grant_type: String = "Authorization_code"
+    var grant_type: String = "Authorization_code"
     var code: String
     var redirect_uri: String
     var client_id: String
