@@ -26,8 +26,8 @@ struct LoginWithAmazonController: RouteCollection {
         func authHandler (_ req: Request) throws -> Future<String> {
             let logger = try req.make(Logger.self)
             logger.debug("Hit authHandler leaf start.")
-            logger.debug("Headers: \(req.http.headers.debugDescription)")
-            logger.debug("Body: \(req.http.body.debugDescription)")
+            logger.debug("Start headers: \(req.http.headers.debugDescription)")
+            logger.debug("Start body: \(req.http.body.debugDescription)")
             let authResp = try req.query.decode(LWAAccessRequest.self)
             let authRequest = LWAAuthRequest.init(
                 codeIn: authResp.code,
@@ -42,8 +42,8 @@ struct LoginWithAmazonController: RouteCollection {
                 logger.debug("Post debug desc: \(post.http.debugDescription)")
                 }.map (to: String.self) { res in
                     logger.debug("Hit after auth resp.")
-                    logger.debug("Headers: \(res.http.headers.debugDescription)")
-                    logger.debug("Body: \(res.http.body.debugDescription)")
+                    logger.debug("After headers: \(res.http.headers.debugDescription)")
+                    logger.debug("After body: \(res.http.body.debugDescription)")
                     return "Hit LwaResponse leaf, Headers: \(res.http.headers.debugDescription)\nDescription: \(res.http.description)\nStatus: \(res.http.status)\nBody: \(res.http.body.debugDescription)"
             }
         }
