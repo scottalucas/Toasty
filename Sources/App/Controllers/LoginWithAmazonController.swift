@@ -18,7 +18,7 @@ struct LoginWithAmazonController: RouteCollection {
             print("Hit LWA login route.")
             guard
                 let site = Environment.get("SITEURL"),
-                let redirectUrl = "\(site))/lwa/auth".addingPercentEncoding(withAllowedCharacters: .urlHostAllowed),
+                let redirectUrl = "\(site)/lwa/auth".addingPercentEncoding(withAllowedCharacters: .urlHostAllowed),
                 let clientId = Environment.get("LWACLIENTID"),
                 let clientSecret = Environment.get("LWACLIENTSECRET")
                 else { throw Abort(.preconditionFailed, reason: "Failed to retrieve correct ENV variables for LWA transaction.") }
@@ -35,7 +35,7 @@ struct LoginWithAmazonController: RouteCollection {
             logger.debug("Hit authHandler leaf start.")
             guard
                 let site = Environment.get("SITEURL"),
-                let redirectUrl = "\(site))/lwa/auth".addingPercentEncoding(withAllowedCharacters: .urlHostAllowed),
+                let redirectUrl = "\(site)/lwa/auth".addingPercentEncoding(withAllowedCharacters: .urlHostAllowed),
                 let clientId = Environment.get("LWACLIENTID"),
                 let clientSecret = Environment.get("LWACLIENTSECRET")
                 else { throw Abort(.preconditionFailed, reason: "Failed to retrieve correct ENV variables for LWA transaction.") }
