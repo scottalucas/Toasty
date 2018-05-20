@@ -3,7 +3,7 @@ import Vapor
 import Fluent
 /// Register your application's routes here.
 public func routes(_ router: Router) throws {
-    router.get {req -> Future<View> in
+    router.get {req -> Response in
         let logger = try req.make(Logger.self)
 //        let log = try req.make(Logger.self)
         let logMsg = "Tell me something."
@@ -11,9 +11,9 @@ public func routes(_ router: Router) throws {
 //        Swift.print(logMsg)
         var context = [String: String]()
         context["MSG"] = "\(logMsg)"
-//        guard let site = Environment.get("SITEURL") else {throw Abort(.notImplemented)}
-//        return req.redirect(to: "\(site)/lwa/login")
-        return try req.view().render("testFeedback", context)
+        guard let site = Environment.get("SITEURL") else {throw Abort(.notImplemented)}
+        return req.redirect(to: "\(site)/lwa/login")
+//        return try req.view().render("testFeedback", context)
         
     }
     //

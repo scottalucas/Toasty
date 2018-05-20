@@ -7,9 +7,10 @@ struct LoginWithAmazonController: RouteCollection {
     func boot(router: Router) throws {
         
         let loginWithAmazonRoutes = router.grouped("lwa")
-        
-        func helloHandler (_ req: Request) -> String {
-            print("Hit LWA base route.")
+
+        func helloHandler (_ req: Request) throws -> String {
+            let logger = try req.make(Logger.self)
+            logger.debug("Hit LWA base route.")
             return "Hello! You got LWA!"
         }
         
@@ -23,9 +24,10 @@ struct LoginWithAmazonController: RouteCollection {
         }
         
         func authHandler (_ req: Request) throws -> Future<String> {
-            print("Hit authHandler leaf start.")
-            print("Headers: \(req.http.headers.debugDescription)")
-            print("Body: \(req.http.body.debugDescription)")
+            let logger = try req.make(Logger.self)
+            logger.debug("Hit authHandler leaf start.")
+            logger.debug("Headers: \(req.http.headers.debugDescription)")
+            logger.debug("Body: \(req.http.body.debugDescription)")
             let authResp = try req.query.decode(LWAAccessRequest.self)
             let authRequest = LWAAuthRequest.init(
                 codeIn: authResp.code,
@@ -33,33 +35,24 @@ struct LoginWithAmazonController: RouteCollection {
                 clientId: "\(Environment.get("LWACLIENTID") ?? "Client id not available")",
                 clientSecret: "\(Environment.get("LWACLIENTSECRET") ?? "Client secret not available")")
             let client = try req.make(Client.self)
-            print("Client services: \(client.container.services.description)")
+            logger.debug("Client services: \(client.container.services.description)")
             return client.post("https://api.amazon.com/auth/o2/token") { post in
                 try post.query.encode(authRequest)
                 }.map (to: String.self) { res in
-                    print("Hit after auth resp.")
-                    print("Headers: \(res.http.headers.debugDescription)")
-                    print("Body: \(res.http.body.debugDescription)")
+                    logger.debug("Hit after auth resp.")
+                    logger.debug("Headers: \(res.http.headers.debugDescription)")
+                    logger.debug("Body: \(res.http.body.debugDescription)")
                     return "Hit LwaResponse leaf, Headers: \(res.http.headers.debugDescription)\nDescription: \(res.http.description)\nStatus: \(res.http.status)\nBody: \(res.http.body.debugDescription)"
             }
         }
         
         func accessHandler (_ req: Request) throws -> String {
-            var retText = "post test route"
-            var plog:PrintLogger = PrintLogger()
-            do { plog = try req.make(PrintLogger.self)
-            } catch { retText += " failed to make print logger"}
-//            do { log = try req.make(Logger.self)
-//            } catch { retText += " failed to make logger."}
-
-            print("Hit post test route.")
-            print("Headers: \(req.http.headers.debugDescription)")
-            print("Method: \(req.http.method)")
-            print("URL: \(req.http.urlString)")
-            plog.info("Plog Hit post test route.")
-            plog.info("Plog Headers: \(req.http.headers.debugDescription)")
-            plog.info("Plog Method: \(req.http.method)")
-            plog.info("Plog URL: \(req.http.urlString)")
+            let logger = try req.make(Logger.self)
+            let retText = "post test route"
+            logger.debug("Hit post test route.")
+            logger.debug("Headers: \(req.http.headers.debugDescription)")
+            logger.debug("Method: \(req.http.method)")
+            logger.debug("URL: \(req.http.urlString)")
             return retText
         }
         
