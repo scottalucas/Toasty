@@ -16,10 +16,17 @@ struct LoginWithAmazonController: RouteCollection {
         
         func loginHandler (_ req: Request) throws -> Future<View> {
             print("Hit LWA login route.")
+            guard
+                let site = Environment.get("SITEURL"),
+                let redirectUrl = "\(site))/lwa/auth".addingPercentEncoding(withAllowedCharacters: .urlHostAllowed),
+                let clientId = Environment.get("LWACLIENTID"),
+                let clientSecret = Environment.get("LWACLIENTSECRET")
+                else { throw Abort(.preconditionFailed, reason: "Failed to retrieve correct ENV variables for LWA transaction.") }
             var context = [String: String]()
-            context["LWA-CLIENTID"] = Environment.get("LWACLIENTID") ?? "Client ID not found."
-            context["LWA-CLIENTSECRET"] = Environment.get("LWACLIENTSECRET") ?? "Client secret not found"
-            context["SITE-URL"] = Environment.get("SITEURL") ?? "Site url not found"
+            context["LWA-CLIENTID"] = clientId
+            context["LWA-CLIENTSECRET"] = clientSecret
+            context["SITE-URL"] = redirectUrl
+            context["USER-ID"] = "set user id"
             return try req.view().render("home", context)
         }
         
@@ -28,7 +35,7 @@ struct LoginWithAmazonController: RouteCollection {
             logger.debug("Hit authHandler leaf start.")
             guard
                 let site = Environment.get("SITEURL"),
-                let redirectUrl = "\(site))/lwa/auth/".addingPercentEncoding(withAllowedCharacters: .urlHostAllowed),
+                let redirectUrl = "\(site))/lwa/auth".addingPercentEncoding(withAllowedCharacters: .urlHostAllowed),
                 let clientId = Environment.get("LWACLIENTID"),
                 let clientSecret = Environment.get("LWACLIENTSECRET")
                 else { throw Abort(.preconditionFailed, reason: "Failed to retrieve correct ENV variables for LWA transaction.") }
