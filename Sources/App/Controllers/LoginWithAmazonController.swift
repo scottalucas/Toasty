@@ -18,14 +18,13 @@ struct LoginWithAmazonController: RouteCollection {
             print("Hit LWA login route.")
             guard
                 let site = Environment.get("SITEURL"),
-                let redirectUrl = "\(site)/lwa/auth".addingPercentEncoding(withAllowedCharacters: .urlHostAllowed),
                 let clientId = Environment.get("LWACLIENTID"),
                 let clientSecret = Environment.get("LWACLIENTSECRET")
                 else { throw Abort(.preconditionFailed, reason: "Failed to retrieve correct ENV variables for LWA transaction.") }
             var context = [String: String]()
             context["LWA-CLIENTID"] = clientId
             context["LWA-CLIENTSECRET"] = clientSecret
-            context["SITE-URL"] = redirectUrl
+            context["SITE-URL"] = "\(site)/lwa/auth"
             context["USER-ID"] = "set user id"
             for item in context {
                 print (item)
@@ -52,10 +51,10 @@ struct LoginWithAmazonController: RouteCollection {
                 clientSecret: clientSecret)
             let client = try req.make(Client.self)
             logger.debug("Auth req to send: \(authRequest)")
-            return client.post("https://api.amazon.com/auth/o2/token") { post in
-                try post.query.encode(authRequest)
-                post.http.headers = HTTPHeaders.init([("Content-Type", "application/x-www-form-urlencoded")])
-                logger.debug("Post debug desc: \(post.http.debugDescription)")
+            return client.get("https://api.amazon.com/auth/o2/token") { req in
+                try req.query.encode(authRequest)
+                req.http.headers = HTTPHeaders.init([("Content-Type", "application/x-www-form-urlencoded")])
+                logger.debug("Post debug desc: \(req.http.debugDescription)")
                 }.map (to: String.self) { res in
                     logger.debug("Hit after auth resp.")
                     logger.debug("After full desc: \(res.http.debugDescription)")
