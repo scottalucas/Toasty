@@ -35,16 +35,17 @@ struct LoginWithAmazonController: RouteCollection {
                 clientId: "\(Environment.get("LWACLIENTID") ?? "Client id not available")",
                 clientSecret: "\(Environment.get("LWACLIENTSECRET") ?? "Client secret not available")")
             let client = try req.make(Client.self)
-//            logger.debug("Client services: \(client.container.services.description)")
+            logger.debug("Auth req to send: \(authRequest)")
             return client.post("https://api.amazon.com/auth/o2/token") { post in
                 try post.query.encode(authRequest)
                 post.http.headers = HTTPHeaders.init([("Content-Type", "application/x-www-form-urlencoded")])
                 logger.debug("Post debug desc: \(post.http.debugDescription)")
                 }.map (to: String.self) { res in
                     logger.debug("Hit after auth resp.")
+                    logger.debug("After full desc: \(res.http.debugDescription)")
                     logger.debug("After headers: \(res.http.headers.debugDescription)")
                     logger.debug("After body: \(res.http.body.debugDescription)")
-                    return "Hit LwaResponse leaf, Headers: \(res.http.headers.debugDescription)\nDescription: \(res.http.description)\nStatus: \(res.http.status)\nBody: \(res.http.body.debugDescription)"
+                    return "Hit LwaResponse leaf, Headers: \(res.http.headers.debugDescription)\nDescription: \(res.http.debugDescription)"
             }
         }
         
