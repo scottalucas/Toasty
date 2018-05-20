@@ -18,16 +18,15 @@ struct LoginWithAmazonController: RouteCollection {
             let logger = try req.make(Logger.self)
             logger.debug("Hit LWA login route.")
             guard
-                let site = Environment.get("SITEURL"),
-                let clientId = Environment.get("LWACLIENTID"),
-                let clientSecret = Environment.get("LWACLIENTSECRET")
-                else { throw Abort(.preconditionFailed, reason: "Failed to retrieve correct ENV variables for LWA transaction.") }
+                let site = Environment.get("SITEURL")
+                else { throw Abort(.preconditionFailed, reason: "Server Error: Failed to retrieve correct ENV variables for LWA transaction.") }
             var context = [String: String]()
-            context["LWA-CLIENTID"] = clientId
-            context["LWA-CLIENTSECRET"] = clientSecret
-            context["SITE-URL"] = "\(site)/lwa/auth"
-            context["USER-ID"] = "set user id"
-            return try req.view().render("home", context)
+            context["SITEURL"] = "\(site)\(ToastyAppRoutes.lwa.auth)"
+            context["PROFILE"] = "profile"
+            context["INTERACTIVE"] = "always"
+            context["RESPONSETYPE"] = "code"
+            context["STATE"] = "some user id"
+            return try req.view().render("lwaLogin", context)
         }
         
         func authHandler (_ req: Request) throws -> Future<String> {
@@ -39,8 +38,8 @@ struct LoginWithAmazonController: RouteCollection {
                 let clientSecret = Environment.get("LWACLIENTSECRET")
                 else { throw Abort(.preconditionFailed, reason: "Server error: failed to retrieve correct ENV variables for LWA transaction.") }
             logger.debug("Start desc: \(req.http.debugDescription)")
-            let authResp = try req.query.decode(LWAAccessRequest.self)
-            let authRequest = LWAAuthRequest.init(
+            let authResp = try req.query.decode(LWAAccessTokenRequest.self)
+            let authRequest = LWAAccessTokenRequest.init(
                 codeIn: authResp.code,
                 redirectUri: "\(site)/lwa/auth",
                 clientId: clientId,
@@ -53,12 +52,20 @@ struct LoginWithAmazonController: RouteCollection {
                     try req.content.encode(authRequest, as: .urlEncodedForm)
                     logger.debug("Request sent to LWA server:\n \(req.http.debugDescription)\n\n")
                 }
-                .map (to: String.self) { res in
-                    logger.debug("Hit after auth resp.")
-                    logger.debug("After full desc: \(res.http.debugDescription)\n\n")
-                    logger.debug("After headers: \(res.http.headers.debugDescription)\n\n")
-                    logger.debug("After body: \(res.http.body.debugDescription)\n\n")
-                    return "Hit LwaResponse leaf, Headers: \(res.http.headers.debugDescription)\nDescription: \(res.http.debugDescription)"
+                .flatMap (to: LWAAccessTokenGrant.self) { res in
+                    return try res.content.decode(LWAAccessTokenGrant.self)
+                }
+                .flatMap (to: Response.self) { tokenStruct in
+                    let token = tokenStruct.access_token
+                    let client = try req.make(Client.self)
+                    let headers = HTTPHeaders.init([("x-amz-access-token", token)])
+                    return client.post("api.amazon.com/user/profile", headers: headers)
+                }
+                .flatMap (to: LWAUserScope.self) { res in
+                    return try res.content.decode(LWAUserScope.self)
+                }
+                .map (to: String.self) { userStruct in
+                    return userStruct.user_id
             }
         }
         
