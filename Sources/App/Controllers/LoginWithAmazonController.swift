@@ -26,14 +26,20 @@ struct LoginWithAmazonController: RouteCollection {
         func authHandler (_ req: Request) throws -> Future<String> {
             let logger = try req.make(Logger.self)
             logger.debug("Hit authHandler leaf start.")
+            guard
+                let site = Environment.get("SITEURL"),
+                let redirectUrl = "\(site))/lwa/auth/".addingPercentEncoding(withAllowedCharacters: .urlHostAllowed),
+                let clientId = Environment.get("LWACLIENTID"),
+                let clientSecret = Environment.get("LWACLIENTSECRET")
+                else { throw Abort(.preconditionFailed, reason: "Failed to retrieve correct ENV variables for LWA transaction.") }
             logger.debug("Start headers: \(req.http.headers.debugDescription)")
             logger.debug("Start body: \(req.http.body.debugDescription)")
             let authResp = try req.query.decode(LWAAccessRequest.self)
             let authRequest = LWAAuthRequest.init(
                 codeIn: authResp.code,
-                redirectUri: "\(Environment.get("SITEURL") ?? "url not available")/lwa/auth",
-                clientId: "\(Environment.get("LWACLIENTID") ?? "Client id not available")",
-                clientSecret: "\(Environment.get("LWACLIENTSECRET") ?? "Client secret not available")")
+                redirectUri: redirectUrl,
+                clientId: clientId,
+                clientSecret: clientSecret)
             let client = try req.make(Client.self)
             logger.debug("Auth req to send: \(authRequest)")
             return client.post("https://api.amazon.com/auth/o2/token") { post in
