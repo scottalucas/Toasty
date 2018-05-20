@@ -61,7 +61,7 @@ struct LoginWithAmazonController: RouteCollection {
                     let token = tokenStruct.access_token
                     let client = try req.make(Client.self)
                     let headers = HTTPHeaders.init([("x-amz-access-token", token)])
-                    return client.get("api.amazon.com/user/profile", headers: headers)
+                    return client.get("https://api.amazon.com/user/profile", headers: headers)
                 }
                 .flatMap (to: LWAUserScope.self) { res in
                     return try res.content.decode(LWAUserScope.self)
