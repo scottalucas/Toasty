@@ -27,6 +27,9 @@ struct LoginWithAmazonController: RouteCollection {
             context["LWA-CLIENTSECRET"] = clientSecret
             context["SITE-URL"] = redirectUrl
             context["USER-ID"] = "set user id"
+            for item in context {
+                print (item)
+            }
             return try req.view().render("home", context)
         }
         

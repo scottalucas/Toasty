@@ -5,14 +5,15 @@ import Fluent
 public func routes(_ router: Router) throws {
     router.get {req -> Response in
         let logger = try req.make(Logger.self)
-//        let log = try req.make(Logger.self)
-        let logMsg = "Tell me something."
-        logger.info(logMsg)
-//        Swift.print(logMsg)
-        var context = [String: String]()
-        context["MSG"] = "\(logMsg)"
-        guard let site = Environment.get("SITEURL") else {throw Abort(.notImplemented)}
-        return req.redirect(to: "\(site)/lwa/login")
+        logger.debug("In login")
+//        var context = [String: String]()
+//        context["MSG"] = "\(logMsg)"
+        guard
+            let site = Environment.get("SITEURL"),
+            let authStartPage = "\(site)/lwa/login".addingPercentEncoding(withAllowedCharacters: .urlHostAllowed)
+        else {throw Abort(.notImplemented)}
+        logger.debug("In login, redirect is: \(site)")
+        return req.redirect(to: authStartPage)
 //        return try req.view().render("testFeedback", context)
         
     }
