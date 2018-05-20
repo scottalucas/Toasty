@@ -9,11 +9,10 @@ public func routes(_ router: Router) throws {
 //        var context = [String: String]()
 //        context["MSG"] = "\(logMsg)"
         guard
-            let site = Environment.get("SITEURL"),
-            let authStartPage = "\(site)/lwa/login".addingPercentEncoding(withAllowedCharacters: .urlHostAllowed)
-        else {throw Abort(.notImplemented)}
-        logger.debug("In login, redirect is: \(site)")
-        return req.redirect(to: authStartPage)
+            let site = Environment.get("SITEURL")
+            else {throw Abort(.notImplemented)}
+        logger.debug("In login, redirect is: \(site)/lwa/login")
+        return req.redirect(to: "\(site)/lwa/login")
 //        return try req.view().render("testFeedback", context)
         
     }

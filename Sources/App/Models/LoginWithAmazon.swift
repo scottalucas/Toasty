@@ -32,7 +32,7 @@ struct LWAAuthRequest: Content {
     var client_secret: String
     
     init (codeIn: String, redirectUri: String, clientId: String, clientSecret: String) {
-        grant_type = "Authorization_code"
+        grant_type = "authorization_code"
         code = codeIn
         redirect_uri = redirectUri
         client_id = clientId
