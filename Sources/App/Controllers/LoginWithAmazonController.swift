@@ -50,9 +50,9 @@ struct LoginWithAmazonController: RouteCollection {
                 clientSecret: clientSecret)
             let client = try req.make(Client.self)
             logger.debug("Auth req to send: \(authRequest)")
-            return client.get("https://api.amazon.com/auth/o2/token") { req in
+            let postHeaders = HTTPHeaders.init([("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")])
+            return client.post("https://api.amazon.com/auth/o2/token", headers: postHeaders) { req in
                 try req.query.encode(authRequest)
-                req.http.headers = HTTPHeaders.init([("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")])
                 logger.debug("Post debug desc: \(req.http.debugDescription)")
                 }.map (to: String.self) { res in
                     logger.debug("Hit after auth resp.")
