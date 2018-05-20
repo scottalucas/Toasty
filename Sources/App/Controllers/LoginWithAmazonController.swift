@@ -32,12 +32,12 @@ struct LoginWithAmazonController: RouteCollection {
         
         func authHandler (_ req: Request) throws -> Future<String> {
             let logger = try req.make(Logger.self)
-            logger.debug("Hit authHandler leaf start.")
+            logger.debug("Hit authHandler leaf start.\n\n")
             guard
                 let site = Environment.get("SITEURL"),
                 let clientId = Environment.get("LWACLIENTID"),
                 let clientSecret = Environment.get("LWACLIENTSECRET")
-                else { throw Abort(.preconditionFailed, reason: "Failed to retrieve correct ENV variables for LWA transaction.") }
+                else { throw Abort(.preconditionFailed, reason: "Server error: failed to retrieve correct ENV variables for LWA transaction.") }
             logger.debug("Start desc: \(req.http.debugDescription)")
             let authResp = try req.query.decode(LWAAccessRequest.self)
             let authRequest = LWAAuthRequest.init(
@@ -45,13 +45,13 @@ struct LoginWithAmazonController: RouteCollection {
                 redirectUri: "\(site)/lwa/auth",
                 clientId: clientId,
                 clientSecret: clientSecret)
-            let urlString = "https://api.amazon.com/auth/o2/token?grant_type=authorization_code&code=\(authResp.code)&redirect_uri=\(site)/lwa/auth&client_id=\(clientId)&client_secret=\(clientSecret)"
             let client = try req.make(Client.self)
             logger.debug("Auth req to send: \(authRequest)")
-            let postHeaders = HTTPHeaders.init([("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")])
-            return client.post(urlString, headers: postHeaders)
+            return client.post("https://api.amazon.com/auth/o2/token")
                 { req in
-                logger.debug("Request sent to LWA server:\n \(req.http.debugDescription)\n\n")
+                    req.http.contentType = .urlEncodedForm
+                    try req.content.encode(authRequest, as: .urlEncodedForm)
+                    logger.debug("Request sent to LWA server:\n \(req.http.debugDescription)\n\n")
                 }
                 .map (to: String.self) { res in
                     logger.debug("Hit after auth resp.")
