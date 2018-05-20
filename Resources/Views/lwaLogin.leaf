@@ -4,7 +4,7 @@
 <script type="text/javascript">
 
 window.onAmazonLoginReady = function() {
-amazon.Login.setClientId('#(LWA-CLIENTID)');
+amazon.Login.setClientId('#(LWACLIENTID)');
 };
 (function(d) {
 var a = d.createElement('script'); a.type = 'text/javascript';

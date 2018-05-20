@@ -18,7 +18,8 @@ struct LoginWithAmazonController: RouteCollection {
             let logger = try req.make(Logger.self)
             logger.debug("Hit LWA login route.")
             guard
-                let site = Environment.get("SITEURL")
+                let site = Environment.get("SITEURL"),
+                let clientId = Environment.get("LWACLIENTID")
                 else { throw Abort(.preconditionFailed, reason: "Server Error: Failed to retrieve correct ENV variables for LWA transaction.") }
             var context = [String: String]()
             context["SITEURL"] = "\(site)\(ToastyAppRoutes.lwa.auth)"
@@ -26,6 +27,7 @@ struct LoginWithAmazonController: RouteCollection {
             context["INTERACTIVE"] = "always"
             context["RESPONSETYPE"] = "code"
             context["STATE"] = "some user id"
+            context["LWACLIENTID"] = clientId
             return try req.view().render("lwaLogin", context)
         }
         
