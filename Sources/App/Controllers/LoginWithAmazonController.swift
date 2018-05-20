@@ -40,10 +40,10 @@ struct LoginWithAmazonController: RouteCollection {
                 let clientSecret = Environment.get("LWACLIENTSECRET")
                 else { throw Abort(.preconditionFailed, reason: "Server error: failed to retrieve correct ENV variables for LWA transaction.") }
             logger.debug("Start desc: \(req.http.debugDescription)")
-            let authResp = try req.query.decode(LWAAccessTokenRequest.self)
+            let authResp = try req.query.decode(LWAAuthTokenResponse.self)
             let authRequest = LWAAccessTokenRequest.init(
                 codeIn: authResp.code,
-                redirectUri: "\(site)/lwa/auth",
+                redirectUri: "\(site)/lwa/auth", //fix this to use the struct
                 clientId: clientId,
                 clientSecret: clientSecret)
             let client = try req.make(Client.self)

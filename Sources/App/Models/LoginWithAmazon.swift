@@ -18,6 +18,11 @@ struct LWAUserScope:Content {
     var postal_code: String?
 }
 
+struct LWAAuthTokenResponse: Content {
+    var code:String
+    var state:String
+}
+
 struct LWAAccessTokenRequest: Content {
     var grant_type: String
     var code: String
