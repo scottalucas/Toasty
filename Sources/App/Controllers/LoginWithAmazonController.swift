@@ -15,7 +15,8 @@ struct LoginWithAmazonController: RouteCollection {
         }
         
         func loginHandler (_ req: Request) throws -> Future<View> {
-            print("Hit LWA login route.")
+            let logger = try req.make(Logger.self)
+            logger.debug("Hit LWA login route.")
             guard
                 let site = Environment.get("SITEURL"),
                 let clientId = Environment.get("LWACLIENTID"),
@@ -26,9 +27,6 @@ struct LoginWithAmazonController: RouteCollection {
             context["LWA-CLIENTSECRET"] = clientSecret
             context["SITE-URL"] = "\(site)/lwa/auth"
             context["USER-ID"] = "set user id"
-            for item in context {
-                print (item)
-            }
             return try req.view().render("home", context)
         }
         
@@ -52,15 +50,14 @@ struct LoginWithAmazonController: RouteCollection {
             logger.debug("Auth req to send: \(authRequest)")
             let postHeaders = HTTPHeaders.init([("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")])
             return client.post(urlString, headers: postHeaders)
-//            { req in
-//                try req.query.encode(authRequest)
-//                logger.debug("Post debug desc: \(req.http.debugDescription)")
-//                }
+                { req in
+                logger.debug("Request sent to LWA server:\n \(req.http.debugDescription)\n\n")
+                }
                 .map (to: String.self) { res in
                     logger.debug("Hit after auth resp.")
-                    logger.debug("After full desc: \(res.http.debugDescription)")
-                    logger.debug("After headers: \(res.http.headers.debugDescription)")
-                    logger.debug("After body: \(res.http.body.debugDescription)")
+                    logger.debug("After full desc: \(res.http.debugDescription)\n\n")
+                    logger.debug("After headers: \(res.http.headers.debugDescription)\n\n")
+                    logger.debug("After body: \(res.http.body.debugDescription)\n\n")
                     return "Hit LwaResponse leaf, Headers: \(res.http.headers.debugDescription)\nDescription: \(res.http.debugDescription)"
             }
         }
