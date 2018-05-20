@@ -38,7 +38,7 @@ struct LoginWithAmazonController: RouteCollection {
 //            logger.debug("Client services: \(client.container.services.description)")
             return client.post("https://api.amazon.com/auth/o2/token") { post in
                 try post.query.encode(authRequest)
-                post.http.headers = HTTPHeaders.init([("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")])
+                post.http.headers = HTTPHeaders.init([("Content-Type", "application/x-www-form-urlencoded")])
                 logger.debug("Post debug desc: \(post.http.debugDescription)")
                 }.map (to: String.self) { res in
                     logger.debug("Hit after auth resp.")
