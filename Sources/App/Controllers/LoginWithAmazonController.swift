@@ -31,7 +31,7 @@ struct LoginWithAmazonController: RouteCollection {
             let authResp = try req.query.decode(LWAAccessRequest.self)
             let authRequest = LWAAuthRequest.init(
                 codeIn: authResp.code,
-                redirectUri: "\(Environment.get("SITEURL") ?? "url not available")/lwa/access",
+                redirectUri: "\(Environment.get("SITEURL") ?? "url not available")/lwa/auth",
                 clientId: "\(Environment.get("LWACLIENTID") ?? "Client id not available")",
                 clientSecret: "\(Environment.get("LWACLIENTSECRET") ?? "Client secret not available")")
             let client = try req.make(Client.self)
