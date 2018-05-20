@@ -46,5 +46,3 @@ public func configure(
 //    migrations.add(model: Fireplace.self, database: .psql)
 //    services.register(migrations)
 }
-
-extension PrintLogger: Service {}
