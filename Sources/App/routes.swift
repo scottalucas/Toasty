@@ -9,14 +9,8 @@ public func routes(_ router: Router) throws {
         guard
             let site = Environment.get("SITEURL")
             else {throw Abort(.notImplemented, reason: "Server Error: Main site URL not defined")}
-        logger.debug("In login, redirect is: \(site)\(ToastyAppRoutes.lwa.login)")
-        return req.redirect(to: "\(site)\(ToastyAppRoutes.lwa.login)")
-//        return try req.view().render("testFeedback", context)
-        
+        return req.redirect(to: "\(site)\(ToastyAppRoutes.lwa.login)")   
     }
-    //
-    //    let alexaController = AlexaController()
-    //    let usersController = UsersController()
     let loginWithAmazonController = LoginWithAmazonController()
     //    try router.register(collection: alexaController)
     //    try router.register(collection: usersController)
@@ -25,9 +19,9 @@ public func routes(_ router: Router) throws {
 
 struct ToastyAppRoutes {
     struct lwa {
-        static let lwaRoot = "/lwa"
-        static let auth = "\(lwaRoot)/auth"
-        static let login = "\(lwaRoot)/login"
+        static let lwaRoot = "lwa"
+        static let auth = "/\(lwaRoot)/auth"
+        static let login = "/\(lwaRoot)/login"
     }
 }
 

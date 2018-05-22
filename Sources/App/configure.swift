@@ -14,8 +14,11 @@ public func configure(
     
     var middlewares = MiddlewareConfig()
     middlewares.use(ErrorMiddleware.self)
+    middlewares.use(SessionsMiddleware.self)
     services.register(middlewares)
+    config.prefer(MemoryKeyedCache.self, for: KeyedCache.self)
 //
+    
     services.register(Logger.self) { container in
         return PrintLogger()
     }
@@ -45,4 +48,10 @@ public func configure(
 //    migrations.add(model: User.self, database: .psql)
 //    migrations.add(model: Fireplace.self, database: .psql)
 //    services.register(migrations)
+}
+
+struct ENVVariables {
+    static let siteUrl:String = "SITEURL"
+    static let lwaClientId:String = "LWACLIENTID"
+    static let lwaClientSecret:String = "LWACLIENTSECRET"
 }

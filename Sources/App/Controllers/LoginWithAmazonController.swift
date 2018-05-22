@@ -6,8 +6,8 @@ struct LoginWithAmazonController: RouteCollection {
     
     func boot(router: Router) throws {
         
-        let loginWithAmazonRoutes = router.grouped("lwa")
-
+        let loginWithAmazonRoutes = router.grouped(ToastyAppRoutes.lwa.lwaRoot)
+        
         func helloHandler (_ req: Request) throws -> String {
             let logger = try req.make(Logger.self)
             logger.debug("Hit LWA base route.")
@@ -15,60 +15,58 @@ struct LoginWithAmazonController: RouteCollection {
         }
         
         func loginHandler (_ req: Request) throws -> Future<View> {
-            let logger = try req.make(Logger.self)
-            logger.debug("Hit LWA login route.")
             guard
-                let site = Environment.get("SITEURL"),
-                let clientId = Environment.get("LWACLIENTID")
+                let site = Environment.get(ENVVariables.siteUrl),
+                let clientId = Environment.get(ENVVariables.lwaClientId)
                 else { throw Abort(.preconditionFailed, reason: "Server Error: Failed to retrieve correct ENV variables for LWA transaction.") }
             var context = [String: String]()
             context["SITEURL"] = "\(site)\(ToastyAppRoutes.lwa.auth)"
-            context["PROFILE"] = "profile"
-            context["INTERACTIVE"] = "always"
-            context["RESPONSETYPE"] = "code"
+            context["PROFILE"] = LWATokenRequestConfig.profile
+            context["INTERACTIVE"] = LWATokenRequestConfig.interactive
+            context["RESPONSETYPE"] = LWATokenRequestConfig.responseType
             context["STATE"] = "some user id"
             context["LWACLIENTID"] = clientId
             return try req.view().render("lwaLogin", context)
         }
         
         func authHandler (_ req: Request) throws -> Future<String> {
-            let logger = try req.make(Logger.self)
-            logger.debug("Hit authHandler leaf start.\n\n")
+            //            let logger = try req.make(Logger.self)
             guard
-                let site = Environment.get("SITEURL"),
-                let clientId = Environment.get("LWACLIENTID"),
-                let clientSecret = Environment.get("LWACLIENTSECRET")
-                else { throw Abort(.preconditionFailed, reason: "Server error: failed to retrieve correct ENV variables for LWA transaction.") }
-            logger.debug("Start desc: \(req.http.debugDescription)")
-            let authResp = try req.query.decode(LWAAuthTokenResponse.self)
+                let site = Environment.get(ENVVariables.siteUrl),
+                let clientId = Environment.get(ENVVariables.lwaClientId),
+                let clientSecret = Environment.get(ENVVariables.lwaClientSecret),
+                let client = try? req.make(Client.self)
+                else { throw Abort(.preconditionFailed, reason: "Server error: failed to create authentication environment.") }
+            guard let authResp = try? req.query.decode(LWAAuthTokenResponse.self) else {
+                if let errResp = try? req.query.decode(LWAAuthTokenResponseError.self) {
+                    throw Abort(.unauthorized, reason: errResp.error_description) } else {
+                    throw Abort(.notFound, reason: "Authentication failed with unknown error.")
+                }
+            }
             let authRequest = LWAAccessTokenRequest.init(
                 codeIn: authResp.code,
-                redirectUri: "\(site)/lwa/auth", //fix this to use the struct
+                redirectUri: "\(site)\(ToastyAppRoutes.lwa.auth)",
                 clientId: clientId,
                 clientSecret: clientSecret)
-            let client = try req.make(Client.self)
-            logger.debug("Auth req to send: \(authRequest)")
-            return client.post("https://api.amazon.com/auth/o2/token")
-                { req in
-                    req.http.contentType = .urlEncodedForm
-                    try req.content.encode(authRequest, as: .urlEncodedForm)
-                    logger.debug("Request sent to LWA server:\n \(req.http.debugDescription)\n\n")
-                }
-                .flatMap (to: LWAAccessTokenGrant.self) { res in
-                    return try res.content.decode(LWAAccessTokenGrant.self)
-                }
-                .flatMap (to: Response.self) { tokenStruct in
-                    let token = tokenStruct.access_token
-                    let client = try req.make(Client.self)
-                    let headers = HTTPHeaders.init([("x-amz-access-token", token)])
-                    return client.get("https://api.amazon.com/user/profile", headers: headers)
-                }
-                .flatMap (to: LWAUserScope.self) { res in
-                    return try res.content.decode(LWAUserScope.self)
-                }
-                .map (to: String.self) { userStruct in
-                    return userStruct.user_id
-            }
+            
+            return client.post(LWASites.tokens, beforeSend: { newPost in
+                newPost.http.contentType = .urlEncodedForm
+                do { try newPost.content.encode(authRequest, as: .urlEncodedForm) } catch {
+                    throw Abort(.badRequest, reason: "Could not encode authorization request.")
+                    }
+                }).map (to: LWAAccessTokenGrant.self) { res in
+                    do { return try res.content.syncDecode(LWAAccessTokenGrant.self) }
+                    catch {
+                        do { let err = try res.content.syncDecode(LWAAccessTokenGrantError.self)
+                            throw Abort(.unauthorized, reason: err.error_description) }
+                        catch {
+                            throw Abort(.notFound, reason: "Unknown error") }
+                    }
+                }.flatMap (to: LWAUserScope.self) { tokenStruct in
+                    return try self.getAmazonUserIdStruct(req, accessToken: tokenStruct.access_token)
+                }.map (to: String.self) { userStruct in
+                        return userStruct.user_id
+                    }
         }
         
         func accessHandler (_ req: Request) throws -> String {
@@ -81,33 +79,25 @@ struct LoginWithAmazonController: RouteCollection {
             return retText
         }
         
-        //        func newAccountHandler (_ req: Request, accessToken: LWAAccessToken) -> String {
-        //            let logger = PrintLogger()
-        //            let body = req.http.body.debugDescription
-        //            logger.info("HTTP body in new account linker: \(body)")
-        //            return body
-        //        }
-        
         loginWithAmazonRoutes.get("hello", use: helloHandler)
         loginWithAmazonRoutes.get("auth", use: authHandler)
         loginWithAmazonRoutes.post("access", use: accessHandler)
         loginWithAmazonRoutes.get("login", use: loginHandler)
     }
     
-}
-
-struct AccessResponse: Parameter {
-    
-    var access_token: String
-    var token_type: String?
-    var expires_in: Int?
-    var refresh_token: String?
-    
-    init (id: String) {
-        access_token = id
-    }
-    
-    static func resolveParameter(_ parameter: String, on container: Container) throws -> AccessResponse {
-        return AccessResponse(id: parameter)
+    func getAmazonUserIdStruct (_ req: Request, accessToken: String) throws -> Future<LWAUserScope> {
+        let client = try req.make(Client.self)
+        let headers = HTTPHeaders.init([("x-amz-access-token", accessToken)])
+        return client.get(LWASites.users, headers: headers)
+            .map(to: LWAUserScope.self) { res in
+                let respHttp = res.http
+                let transactionMsg = LWAUserScopeError(rawValue: respHttp.status.reasonPhrase)?.desc() ?? "Unknown transaction message."
+                guard respHttp.status.code == 200 else {throw Abort(.notFound, reason: transactionMsg)}
+                do {
+                    return try res.content.syncDecode(LWAUserScope.self)
+                } catch {
+                    throw Abort(.notFound, reason: "Could not decode returned user scope.")
+                }
+            }
     }
 }
