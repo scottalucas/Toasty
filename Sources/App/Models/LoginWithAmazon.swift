@@ -9,7 +9,30 @@ import Foundation
 import Vapor
 import FluentPostgreSQL
 
-//parameter types
+final class AmazonAccount:Codable, Model {
+    var id: UUID?
+    var amazonUserId: String
+    var email: String?
+    var name: String?
+    var postalCode: String?
+    var userId: User.ID? //foreign key to main user account
+    var user: Parent<AmazonAccount, User>? {
+        return parent(\.userId)
+    }
+    
+    init (with lwaScope: LWAUserScope, userId: User.ID?) {
+        amazonUserId = lwaScope.user_id
+        email = lwaScope.email
+        name = lwaScope.name
+        postalCode = lwaScope.postal_code
+        self.userId = userId
+    }
+}
+
+extension AmazonAccount: PostgreSQLUUIDModel {}
+extension AmazonAccount: Content {}
+extension AmazonAccount: Migration {}
+extension AmazonAccount: Parameter {}
 
 struct LWAUserScope:Content {
     var user_id: String
@@ -42,8 +65,13 @@ enum LWAUserScopeError : String {
 }
 
 struct LWAAuthTokenResponse: Content {
-    var code:String
+    var code:String //access code
     var state:String
+    
+    enum CodingKeys : String, CodingKey {
+        case code = "accessCode"
+        case state = "sessionId"
+    }
 }
 
 struct LWAAuthTokenResponseError: Content {

@@ -1,0 +1,7 @@
+<html>
+<body>
+#embed("header")
+#(MSG)
+#embed("footer")
+</body>
+</html>

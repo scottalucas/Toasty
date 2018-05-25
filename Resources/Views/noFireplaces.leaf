@@ -1,0 +1,9 @@
+<html>
+<body>
+#embed("header")
+No fireplaces
+#(MSG)
+#embed("footer")
+</body>
+</html>
+

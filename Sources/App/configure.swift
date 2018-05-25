@@ -25,29 +25,28 @@ public func configure(
     //
     try services.register(LeafProvider())
     config.prefer(LeafRenderer.self, for: ViewRenderer.self)
-//
-//    // Configure a database
-//    var databases = DatabasesConfig()
-//    let hostname = Environment.get("DATABASE_HOSTNAME")
-//        ?? "localhost"
-//    let username = Environment.get("DATABASE_USER") ?? "vapor"
-//    let databaseName = Environment.get("DATABASE_DB") ?? "vapor"
-//    let password = Environment.get("DATABASE_PASSWORD")
-//        ?? "password"
-//    let databaseConfig = PostgreSQLDatabaseConfig(
-//        hostname: hostname,
-//        username: username,
-//        database: databaseName,
-//        password: password)
-//    let database = PostgreSQLDatabase(config: databaseConfig)
-//    databases.add(database: database, as: .psql)
-//    services.register(databases)
-//
-//    var migrations = MigrationConfig()
-//    migrations.add(model: AlexaAccount.self, database: .psql)
-//    migrations.add(model: User.self, database: .psql)
-//    migrations.add(model: Fireplace.self, database: .psql)
-//    services.register(migrations)
+
+    // Configure a database
+    try services.register(FluentPostgreSQLProvider())
+    var databases = DatabasesConfig()
+    guard let hostname = Environment.get("DATABASEHOSTNAME") else {throw Abort(.failedDependency, reason: "Database host name not found")}
+    guard let username = Environment.get("DATABASEUSER") else {throw Abort(.failedDependency, reason: "Database username name not found")}
+    guard let databaseName = Environment.get("DATABASEDB") else {throw Abort(.failedDependency, reason: "Database name not found")}
+    guard let password = Environment.get("DATABASEPASSWORD") else {throw Abort(.failedDependency, reason: "Database password name not found")}
+    let databaseConfig = PostgreSQLDatabaseConfig(
+        hostname: hostname,
+        username: username,
+        database: databaseName,
+        password: password)
+    let database = PostgreSQLDatabase(config: databaseConfig)
+    databases.add(database: database, as: .psql)
+    services.register(databases)
+
+    var migrations = MigrationConfig()
+    migrations.add(model: AmazonAccount.self, database: .psql)
+    migrations.add(model: User.self, database: .psql)
+    migrations.add(model: Fireplace.self, database: .psql)
+    services.register(migrations)
 }
 
 struct ENVVariables {

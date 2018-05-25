@@ -1,0 +1,8 @@
+<html>
+<body>
+#embed("header")
+Choose fireplaces
+#(MSG)
+#embed("footer")
+</body>
+</html>
