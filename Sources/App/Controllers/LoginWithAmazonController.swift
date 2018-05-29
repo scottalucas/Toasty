@@ -51,7 +51,8 @@ struct LoginWithAmazonController: RouteCollection {
             //            let logger = try req.make(Logger.self)
             guard
                 let authResp = try? req.query.decode(LWAAuthTokenResponse.self)
-                else {//throw one of two errors. Note we don't have the state so we can't clean up the session database.
+                else {
+                    //throw one of two errors. Note we don't have the state so we can't clean up the session database.
                     if let errResp = try? req.query.decode(LWAAuthTokenResponseError.self) {
                         throw Abort(.unauthorized, reason: errResp.error_description) }
                     else { throw Abort(.notFound, reason: "Authentication failed with unknown error.")}
@@ -63,29 +64,44 @@ struct LoginWithAmazonController: RouteCollection {
                 else {
                     throw Abort(.preconditionFailed, reason: "Server error: failed to create authentication environment.") }
             
+            guard let client = try? req.make(Client.self) else { throw Abort(.failedDependency, reason: "Server error: could not create client to get amazon account.")}
+            //*******************
             
+            let authRequest = LWAAccessTokenRequest.init(
+                codeIn: authResp.code,
+                redirectUri: "\(site)\(ToastyAppRoutes.lwa.auth)",
+                clientId: clientId,
+                clientSecret: clientSecret)
             
-            var fireplaces:Future<[Fireplace]> = try getSessionFireplaces(using: authResp.state, on: req)
-            var amazonAccount:Future<AmazonAccount> = try getAmazonAccount(using: authResp.code, on: req)
-            let userAccount:Future<User> = try getUserAccount(associatedWith: amazonAccount, context: req)
-            amazonAccount = flatMap(to: AmazonAccount.self, amazonAccount, userAccount) { amazonAcct, userAcct in
-                amazonAcct.userId = userAcct.id
-                return amazonAcct.save(on: req)
+            guard let lwaAccessTokenGrant:Future<LWAAccessTokenGrant> = try? getLwaAccessTokenGrant(using: authRequest, with: client) else {
+                throw Abort(.notFound, reason: "Could not get access token grant.")}
+            
+            //*******************
+            
+            let amazonUserScope:Future<LWAUserScope> = try getAmazonScope(using: lwaAccessTokenGrant, on: req)
+            
+            let fireplaces:Future<[Fireplace]> = try getSessionFireplaces(using: authResp.state, on: req)
+            
+            let userAcct:Future<User> = getUser(using: amazonUserScope, on: req) //if there is an existing user account, this function also deletes all associated Alexa records
+            
+            let amazonAcct:Future<AmazonAccount> = flatMap(to: AmazonAccount.self, amazonUserScope, userAcct) { scope, acct in
+                guard let azAcct = AmazonAccount.init(with: scope, user: acct) else {throw Abort(.notFound, reason: "Could not create Amazon account from provided user account.")}
+                return azAcct.save(on: req)
             }
-            fireplaces = flatMap(to: [Fireplace].self, fireplaces, userAccount) {fps, usr in
-                guard let uid = usr.id else {throw Abort(.notFound, reason: "No user id")}
-                let newFps:[Future<Fireplace>] = fps.map { $0.userId = uid; return $0.save(on: req) }
-                return newFps.flatten(on: req)
+            
+            let alexaFireplaces:Future<[AlexaFireplace]> = flatMap(to: [AlexaFireplace].self, fireplaces, amazonAcct) { fps, acct in
+                var alexaFps:[Future<AlexaFireplace>] = []
+                for fireplace in fps {
+                    guard let newAlexaFp = AlexaFireplace.init(childOf: fireplace, associatedWith: acct)?.save(on: req) else {continue}
+                    alexaFps.append( newAlexaFp )
+                }
+                return alexaFps.flatten(on: req)
             }
-        }
-        
-        func devAuthHandler (_ req: Request) throws -> (Future<View>) {
-            let amazonUserId:String = try req.parameters.next()
-            return try returnFutureUserAccount(with: amazonUserId, context: req)
-                .flatMap (to: View.self) { user in
-                    var context = [String : String]()
-                    context["MSG"] = "Amazon user ID: \(amazonUserId) System ID: \(user?.id?.uuidString ?? "not found")"
-                    return try req.view().render("testFeedback", context)
+            
+            return flatMap(to: View.self, userAcct, amazonAcct) { uAcct, aAcct in
+                var context:[String:String] = [:]
+                context["MSG"] = "User account ID: \(String(describing: uAcct.id)) Amazon account ID: \(String(describing: aAcct.id))"
+                return try req.view().render("AuthUserMgmt/lwaAmazonAuthSuccess", context)
             }
         }
         
@@ -101,7 +117,7 @@ struct LoginWithAmazonController: RouteCollection {
         
         loginWithAmazonRoutes.get("hello", use: helloHandler)
         loginWithAmazonRoutes.get("auth", use: authHandler)
-        loginWithAmazonRoutes.get("devAuth", String.parameter, use: devAuthHandler)
+        //        loginWithAmazonRoutes.get("devAuth", String.parameter, use: devAuthHandler)
         loginWithAmazonRoutes.post("access", use: accessHandler)
         loginWithAmazonRoutes.post("login", use: loginHandler)
     }
@@ -114,14 +130,14 @@ struct LoginWithAmazonController: RouteCollection {
                 throw Abort(.badRequest, reason: "Could not encode authorization request.")
             }
         })
-        .map (to: LWAAccessTokenGrant.self) { res in
-            do { return try res.content.syncDecode(LWAAccessTokenGrant.self) }
-            catch {
-                do { let err = try res.content.syncDecode(LWAAccessTokenGrantError.self)
-                    throw Abort(.unauthorized, reason: err.error_description) }
+            .map (to: LWAAccessTokenGrant.self) { res in
+                do { return try res.content.syncDecode(LWAAccessTokenGrant.self) }
                 catch {
-                    throw Abort(.notFound, reason: "Unknown error") }
-            }
+                    do { let err = try res.content.syncDecode(LWAAccessTokenGrantError.self)
+                        throw Abort(.unauthorized, reason: err.error_description) }
+                    catch {
+                        throw Abort(.notFound, reason: "Unknown error") }
+                }
         }
     }
     
@@ -138,69 +154,52 @@ struct LoginWithAmazonController: RouteCollection {
         }
     }
     
-    func getAmazonAccount (using accessCode: String, on req: Request) throws -> Future<AmazonAccount> {
-        var userScope:LWAUserScope
+    func getAmazonScope (using accessCode: Future<LWAAccessTokenGrant>, on req: Request) throws -> Future<LWAUserScope> {
         guard let client = try? req.make(Client.self) else { throw Abort(.failedDependency, reason: "Could not create client to get amazon account.")}
-        let headers = HTTPHeaders.init([("x-amz-access-token", accessCode)])
-        return client.get(LWASites.users, headers: headers)
-            .flatMap(to: AmazonAccount?.self) { res in
+        return accessCode
+            .flatMap(to: Response.self) { code in
+                let headers = HTTPHeaders.init([("x-amz-access-token", code.access_token)])
+                return client.get(LWASites.users, headers: headers)
+            }
+            .map(to: LWAUserScope.self) { res in
                 guard res.http.status.code == 200 else {
                     throw Abort(.notFound, reason: LWAUserScopeError(rawValue: res.http.status.reasonPhrase)?.desc() ?? "Unknown transaction message.")
                 }
-                guard let scopeFromAmazon = try? res.content.syncDecode(LWAUserScope.self) else {throw Abort(.notFound, reason: "Could not decode user scope from Amazon.")}
-                userScope = scopeFromAmazon
-                return try AmazonAccount.query(on: req).filter(\.amazonUserId == userScope.user_id).first()
+                guard let scope = try? res.content.syncDecode(LWAUserScope.self) else {throw Abort(.notFound, reason: "Could not decode user scope from Amazon.")}
+                return scope
+        }
+    }
+    
+    func getAmazonAccount(using scope: Future<LWAUserScope>, on req: Request) -> Future<AmazonAccount?> {
+        return scope.flatMap(to: AmazonAccount?.self) { scope in
+            return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
+        }
+    }
+    
+    func getUser (using scope: Future<LWAUserScope>, on req: Request) -> Future<User> {
+        return scope.flatMap(to: AmazonAccount?.self) { scope in
+            return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
             }
-            .map (to: AmazonAccount.self) { existingOptAmazonAcct in
-                let candidateAmazonAcct = AmazonAccount(with: userScope, userId: nil)
-                if existingOptAmazonAcct != nil {
-                    candidateAmazonAcct.amazonUserId = existingOptAmazonAcct!.amazonUserId
+            .flatMap (to: User.self) { optAcct in
+                guard let acct = optAcct else {
+                    return User.init().save(on: req)
                 }
-                return candidateAmazonAcct
-            }
+                let user = try acct.user.get(on: req)
+                let _ = self.deleteAmazonAccounts(for: user, context: req)
+                return user
+        }
     }
-
-//    func testGetUserAccount (associatedWith amazonAccount: Future<AmazonAccount>, context req: Request) throws -> Future<User> {
-//        return amazonAccount.flatMap(to: User.self) {acct in
-//            return flatMap(to: )
-//        }
-//    }
     
-    func getUserAccount (associatedWith amazonAccount: Future<AmazonAccount>, context req: Request) throws -> Future<User>
-        {
-            return amazonAccount.flatMap(to: User.self) { acct in
-                if acct.user == nil {return User().save(on: req)}
-                return try acct.user!.get(on: req) }
+    func deleteAmazonAccounts (for associatedUser: Future<User>, context req: Request) -> Future<String> {
+        return associatedUser.flatMap (to: [AmazonAccount].self) { user in
+            return try user.amazonAccount.query(on: req).all() }
+            .map (to: Void.self) { accounts in
+                for account in accounts {
+                    let _ = try account.fireplaces.query(on: req).delete()
+                    let _ = account.delete(on: req)
+                }
+                return
             }
-    }
-//            .flatMap(to: User.self) { optUser, acct in
-//                if let acct = optAcct {
-//                    return Future.map(on: req) {return acct}
-//                } else {
-//                    let newUser = User(name: "Anonymous", username: "anonymous")
-//                    return newUser.save(on: req)
-//                }
-//            }
-//            .map(to: ) {
-//
-//            }
-//                amazonAccount.userId = newUser.id
-//
-//                guard let acct = account else {throw Abort(.notFound, reason: "Amazon account not found in database.")}
-//                if let userAcct = try? acct.user.get(on: req) { return userAcct } else {
-//                    let newUser = User(name: "Anonymous", username: "anonymous")
-//                    newUser.save(on: req)
-//                        .map(to: User.self) {user in
-//                            guard let newUserId = user.id else {throw Abort(.notFound, reason: "Ugh, this is bad.")}
-//                            acct.userId = newUserId
-//                            acct.save(on: req)
-//                            return newUser
-//                        }
-//                    }
-//    }
-    
-    func establishMandatoryAccounts (using amazonToken:String, context req: Request) -> String {
-        //stuf
-        return "Under development"
+            .transform(to: "Complete")
     }
 }

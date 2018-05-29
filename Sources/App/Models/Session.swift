@@ -9,12 +9,11 @@ import Foundation
 import Vapor
 import FluentPostgreSQL
 
-struct SessionData:Model {
+struct SessionData: PostgreSQLModel {
     var id:Int?
     var fireplaces:[Fireplace]?
     var expiration:Date?
 }
 
-extension SessionData: PostgreSQLModel {}
 extension SessionData: Content {}
 extension SessionData: Migration {}

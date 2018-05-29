@@ -2,28 +2,39 @@ import Foundation
 import Vapor
 import FluentPostgreSQL
 
-final class Fireplace:Codable, Model {
-    var id:UUID? //convert to string and use as amazon endpoint id
-    var friendlyName:String?
-    var powerSource:String?
-    var controlUrl:String? //unique to each physical fireplace
-    var userId:User.ID?
-
-    func turnOn () {
-    //stub
-    }
+final class Fireplace: Codable {
+    var id:UUID?
+    var friendlyName:String
+    var powerSource:String
+    var controlUrl:String //unique to each physical fireplace
+    var userId:User.ID
     
-    func turnOff () {
-    //stub
+    init? (power source: String?, imp agentUrl: String, user acct: User, friendly name: String?) {
+        guard let usrId = acct.id else { return nil }
+        powerSource = source ?? "Unknown"
+        controlUrl = agentUrl
+        userId = usrId
+        friendlyName = name ?? "Toasty Fireplace"
     }
+}
+
+enum PowerSource: Int, Codable {
+    case battery, line
 }
 
 extension Fireplace: PostgreSQLUUIDModel {}
 extension Fireplace: Content {}
-extension Fireplace: Migration {}
+extension Fireplace: Migration {
+        static func prepare(on connection: PostgreSQLConnection) -> Future<Void> {
+            return Database.create(self, on: connection) { builder in
+                try addProperties(to: builder)
+                try builder.addReference(from: \.userId, to: \User.id)
+            }
+        }
+}
 extension Fireplace: Parameter {}
 extension Fireplace {
-    var user: Parent<Fireplace, User>? {
+    var user: Parent<Fireplace, User> {
         return parent(\.userId)
     }
 }

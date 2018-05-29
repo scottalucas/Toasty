@@ -2,6 +2,61 @@ import Foundation
 import Vapor
 import FluentPostgreSQL
 
+final class AlexaFireplace: PostgreSQLUUIDModel {
+    var id: UUID? //use as Alexa endpoint ID.
+    var friendlyName: String //get this from the BT interface
+    var status: Status
+    var parentFireplaceId: Fireplace.ID //foreign key to the generic fireplace
+    var parentAmazonAccountId: AmazonAccount.ID //foreign key to the associated Alexa account
+    enum Status: Int, Codable {
+        case registered, availableForRegistration, notRegisterable
+    }
+    init? (childOf fireplace:Fireplace, associatedWith amazonAccount: AmazonAccount) {
+        guard let fpId = fireplace.id, let azId = amazonAccount.id else { return nil }
+        parentFireplaceId = fpId
+        parentAmazonAccountId = azId
+        friendlyName = fireplace.friendlyName
+        self.status = (fireplace.powerSource != "line") ? Status.notRegisterable : Status.availableForRegistration
+    }
+}
+
+struct AlexaFireplaceForDiscovery: Codable { //use this to create the discovery response
+    var endpointId:UUID
+    var manufacturerName:String = "Toasty Fireplace"
+    var friendlyName:String
+    var description:String = "Smart home fireplace controller"
+    var displayCategories:[AlexaDisplayCategories] = [.SWITCH]
+    var cookie:[String:String] = [:]
+    var capabilities: [AlexaCapabilities] = [AlexaCapabilities.init(interface: "Alexa.PowerController", version: "3", supportedProps: [["name":"powerState"]], reported: false, retrievable: false)]
+    init? (from fireplace:AlexaFireplace) {
+        guard let id = fireplace.id else {return nil}
+        endpointId = id
+        friendlyName = fireplace.friendlyName
+    }
+}
+
+final class AlexaCapabilities: Codable {
+    var type: String = "AlexaInterface"
+    var interface: String
+    var version: String
+    var properties: Properties
+    struct Properties: Codable {
+        var supported: [[String:String]]?
+        var proactivelyReported: Bool?
+        var retrievable: Bool?
+    }
+    
+    init(interface: String, version: String, supportedProps:[[String:String]], reported: Bool, retrievable: Bool) {
+        self.interface = interface
+        self.version = version
+        properties = Properties(supported: supportedProps, proactivelyReported: reported, retrievable: retrievable)
+    }
+}
+
+enum AlexaDisplayCategories: String, Codable {
+    case ACTIVITY_TRIGGER, CAMERA, DOOR, LIGHT, MICROWAVE, OTHER, SCENE_TRIGGER, SMARTLOCK, SMARTPLUG, SPEAKER, SWITCH, TEMPERATURE_SENSOR, THERMOSTAT, TV
+}
+
 struct AlexaMessage:Content {
     var directive:AlexaDirective
 }
@@ -59,23 +114,55 @@ struct AlexaTestMessage: Content {
     var testMessage: String
 }
 
-final class AlexaAccount: Codable {
-    var toastyUserID:UUID
-    var accessToken:String? //this is the Alexa access token
-    var refreshToken:String?
-    var id: Int?
+
+
+
+final class AlexaToastyPowerControllerInterfaceRequest: Codable {
+    var header:Header
+    var endpoint:Endpoint
+    var payload: [String:String]?
     
-    init (toastyAccountID: UUID) {
-        toastyUserID = toastyAccountID
+    struct Header:Codable {
+        var namespace:String = "Alexa.PowerController"
+        var name: Name
+        var payloadVersion: String
+        var messageId: String
+        var correlationToken: String
+        enum Name: String, Codable {
+            case TurnOn = "TurnOn"
+            case TurnOff = "TurnOff"
+            func execute () {
+                switch self {
+                case .TurnOn:
+                    break
+                //insert turn on url here
+                case .TurnOff:
+                    break
+                    //insert turn off url here
+                }
+            }
+        }
+    }
+    struct Endpoint: Codable {
+        var scope: Scope
+        var endpointId: String
+        var cookie: [String:String]
+        struct Scope: Codable {
+            var type: String = "BearerToken"
+            var token: String
+        }
     }
 }
 
-extension AlexaAccount:PostgreSQLModel {}
-extension AlexaAccount:Content {}
-extension AlexaAccount:Migration {}
-extension AlexaAccount:Parameter {}
-extension AlexaAccount {
-    var user: Parent<AlexaAccount, User> {
-        return parent(\.toastyUserID)
+//extension AlexaFireplace:PostgreSQLUUIDModel {}
+extension AlexaFireplace:Content {}
+extension AlexaFireplace:Migration {}
+extension AlexaFireplace:Parameter {}
+extension AlexaFireplace {
+    var parentFireplace: Parent<AlexaFireplace, Fireplace> {
+        return parent(\.parentFireplaceId)
+    }
+    var parentAmazonAccount: Parent<AlexaFireplace, AmazonAccount> {
+        return parent(\.parentAmazonAccountId)
     }
 }

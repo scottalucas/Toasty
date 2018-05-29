@@ -2,7 +2,7 @@ import Foundation
 import Vapor
 import FluentPostgreSQL
 
-final class User: Codable, Model {
+final class User: Codable {
     var id: UUID?
     var name: String?
     var username: String?
@@ -24,7 +24,7 @@ extension User: Content {}
 extension User: Migration {}
 extension User: Parameter {}
 extension User {
-    var amazonAccounts: Children<User, AmazonAccount> {
+    var amazonAccount: Children<User, AmazonAccount> {
         return children(\.userId)
     }
     var fireplaces: Children<User, Fireplace> {

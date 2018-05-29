@@ -7,16 +7,16 @@ public func configure(
     _ env: inout Environment,
     _ services: inout Services
     ) throws {
-//    try services.register(FluentPostgreSQLProvider())
+    try services.register(FluentPostgreSQLProvider())
     let router = EngineRouter.default()
     try routes(router)
     services.register(router, as: Router.self)
     
     var middlewares = MiddlewareConfig()
-    middlewares.use(ErrorMiddleware.self)
+//    middlewares.use(ErrorMiddleware.self)
     middlewares.use(SessionsMiddleware.self)
     services.register(middlewares)
-    config.prefer(MemoryKeyedCache.self, for: KeyedCache.self)
+//    config.prefer(MemoryKeyedCache.self, for: KeyedCache.self)
 //
     
     services.register(Logger.self) { container in
@@ -27,7 +27,7 @@ public func configure(
     config.prefer(LeafRenderer.self, for: ViewRenderer.self)
 
     // Configure a database
-    try services.register(FluentPostgreSQLProvider())
+//    try services.register(FluentPostgreSQLProvider())
     var databases = DatabasesConfig()
     guard let hostname = Environment.get("DATABASEHOSTNAME") else {throw Abort(.failedDependency, reason: "Database host name not found")}
     guard let username = Environment.get("DATABASEUSER") else {throw Abort(.failedDependency, reason: "Database username name not found")}
@@ -43,9 +43,11 @@ public func configure(
     services.register(databases)
 
     var migrations = MigrationConfig()
-    migrations.add(model: AmazonAccount.self, database: .psql)
     migrations.add(model: User.self, database: .psql)
     migrations.add(model: Fireplace.self, database: .psql)
+    migrations.add(model: AmazonAccount.self, database: .psql)
+    migrations.add(model: AlexaFireplace.self, database: .psql)
+    migrations.add(model: SessionData.self, database: .psql)
     services.register(migrations)
 }
 

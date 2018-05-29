@@ -15,12 +15,10 @@ final class AmazonAccount:Codable, Model {
     var email: String?
     var name: String?
     var postalCode: String?
-    var userId: User.ID? //foreign key to main user account
-    var user: Parent<AmazonAccount, User>? {
-        return parent(\.userId)
-    }
-    
-    init (with lwaScope: LWAUserScope, userId: User.ID?) {
+    var userId: User.ID //foreign key to main user account
+
+    init? (with lwaScope: LWAUserScope, user: User) {
+        guard let userId = user.id else {return nil}
         amazonUserId = lwaScope.user_id
         email = lwaScope.email
         name = lwaScope.name
@@ -29,10 +27,20 @@ final class AmazonAccount:Codable, Model {
     }
 }
 
+
+
 extension AmazonAccount: PostgreSQLUUIDModel {}
 extension AmazonAccount: Content {}
 extension AmazonAccount: Migration {}
 extension AmazonAccount: Parameter {}
+extension AmazonAccount {
+    var user: Parent<AmazonAccount, User> {
+        return parent(\.userId)
+    }
+    var fireplaces: Children<AmazonAccount, AlexaFireplace> {
+        return children(\.parentAmazonAccountId)
+    }
+}
 
 struct LWAUserScope:Content {
     var user_id: String
