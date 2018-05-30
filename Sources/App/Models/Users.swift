@@ -3,7 +3,7 @@ import Vapor
 import FluentPostgreSQL
 
 final class User: Codable {
-    var id: UUID?
+    var id: Int?
     var name: String?
     var username: String?
     
@@ -19,7 +19,7 @@ final class User: Codable {
 }
 
 
-extension User: PostgreSQLUUIDModel {}
+extension User: PostgreSQLModel {}
 extension User: Content {}
 extension User: Migration {}
 extension User: Parameter {}

@@ -10,7 +10,7 @@ import Vapor
 import FluentPostgreSQL
 
 final class AmazonAccount:Codable, Model {
-    var id: UUID?
+    var id: Int?
     var amazonUserId: String
     var email: String?
     var name: String?
@@ -29,7 +29,7 @@ final class AmazonAccount:Codable, Model {
 
 
 
-extension AmazonAccount: PostgreSQLUUIDModel {}
+extension AmazonAccount: PostgreSQLModel {}
 extension AmazonAccount: Content {}
 extension AmazonAccount: Migration {}
 extension AmazonAccount: Parameter {}

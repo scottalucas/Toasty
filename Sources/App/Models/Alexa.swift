@@ -2,8 +2,8 @@ import Foundation
 import Vapor
 import FluentPostgreSQL
 
-final class AlexaFireplace: PostgreSQLUUIDModel {
-    var id: UUID? //use as Alexa endpoint ID.
+final class AlexaFireplace: Codable {
+    var id: Int? //use as Alexa endpoint ID.
     var friendlyName: String //get this from the BT interface
     var status: Status
     var parentFireplaceId: Fireplace.ID //foreign key to the generic fireplace
@@ -21,7 +21,7 @@ final class AlexaFireplace: PostgreSQLUUIDModel {
 }
 
 struct AlexaFireplaceForDiscovery: Codable { //use this to create the discovery response
-    var endpointId:UUID
+    var endpointId:Int
     var manufacturerName:String = "Toasty Fireplace"
     var friendlyName:String
     var description:String = "Smart home fireplace controller"
@@ -154,7 +154,7 @@ final class AlexaToastyPowerControllerInterfaceRequest: Codable {
     }
 }
 
-//extension AlexaFireplace:PostgreSQLUUIDModel {}
+extension AlexaFireplace:PostgreSQLModel {}
 extension AlexaFireplace:Content {}
 extension AlexaFireplace:Migration {}
 extension AlexaFireplace:Parameter {}
