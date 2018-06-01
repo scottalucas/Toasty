@@ -7,10 +7,10 @@ final class AlexaFireplace: Codable {
     var status: Status
     var parentFireplaceId: Fireplace.ID //foreign key to the generic fireplace
     var parentAmazonAccountId: AmazonAccount.ID //foreign key to the associated Alexa account
-    enum Status: Int, Codable {
+    enum Status: Int, Codable, PostgreSQLEnumType {
         case registered, availableForRegistration, notRegisterable
     }
-    init? (childOf fireplace:Fireplace, associatedWith amazonAccount: AmazonAccount) {
+    init? (childOf fireplace: Fireplace, associatedWith amazonAccount: AmazonAccount) {
         guard let fpId = fireplace.id, let azId = amazonAccount.id else { return nil }
         parentFireplaceId = fpId
         parentAmazonAccountId = azId
@@ -20,6 +20,27 @@ final class AlexaFireplace: Codable {
     func didCreate(on connection: PostgreSQLConnection) throws -> EventLoopFuture<AlexaFireplace> {
         logger.info("Created new Alexa Fireplace\n\tid: \(id?.uuidString ?? "none")\n\tParent AZ account: \(parentAmazonAccountId)")
         return Future.map(on: connection) {self}
+    }
+}
+
+extension AlexaFireplace:PostgreSQLUUIDModel {}
+extension AlexaFireplace:Content {}
+extension AlexaFireplace:Migration {
+    static func prepare(on connection: PostgreSQLConnection) -> Future<Void> {
+        return Database.create(self, on: connection) { builder in
+            try addProperties(to: builder)
+            try builder.addReference(from: \.parentAmazonAccountId, to: \AmazonAccount.id)
+            try builder.addReference(from: \.parentFireplaceId, to: \Fireplace.id)
+        }
+    }
+}
+extension AlexaFireplace:Parameter {}
+extension AlexaFireplace {
+    var parentFireplace: Parent<AlexaFireplace, Fireplace> {
+        return parent(\.parentFireplaceId)
+    }
+    var parentAmazonAccount: Parent<AlexaFireplace, AmazonAccount> {
+        return parent(\.parentAmazonAccountId)
     }
 }
 
@@ -116,9 +137,6 @@ struct AlexaTestMessage: Content {
     var testMessage: String
 }
 
-
-
-
 final class AlexaToastyPowerControllerInterfaceRequest: Codable {
     var header:Header
     var endpoint:Endpoint
@@ -156,23 +174,3 @@ final class AlexaToastyPowerControllerInterfaceRequest: Codable {
     }
 }
 
-extension AlexaFireplace:PostgreSQLUUIDModel {}
-extension AlexaFireplace:Content {}
-extension AlexaFireplace:Migration {
-    static func prepare(on connection: PostgreSQLConnection) -> Future<Void> {
-        return Database.create(self, on: connection) { builder in
-            try addProperties(to: builder)
-            try builder.addReference(from: \.parentAmazonAccountId, to: \AmazonAccount.id)
-            try builder.addReference(from: \.parentFireplaceId, to: \Fireplace.id)
-        }
-    }
-}
-extension AlexaFireplace:Parameter {}
-extension AlexaFireplace {
-    var parentFireplace: Parent<AlexaFireplace, Fireplace> {
-        return parent(\.parentFireplaceId)
-    }
-    var parentAmazonAccount: Parent<AlexaFireplace, AmazonAccount> {
-        return parent(\.parentAmazonAccountId)
-    }
-}

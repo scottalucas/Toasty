@@ -27,17 +27,17 @@ final class AmazonAccount:Codable, PostgreSQLUUIDModel {
     }
     
     func didCreate(on connection: PostgreSQLConnection) throws -> EventLoopFuture<AmazonAccount> {
-        logger.info("Created new Alexa Account\n\tid: \(amazonUserId ?? "none")\n\tUser: \(userId.debugDescription)")
+        logger.info("Created new Alexa Account\n\tid: \(amazonUserId)\n\tUser: \(userId.debugDescription)")
         return Future.map(on: connection) {self}
     }
     
     func willUpdate(on connection: PostgreSQLConnection) throws -> EventLoopFuture<AmazonAccount> {
-        logger.info("Ready to update Alexa Account\n\tid: \(amazonUserId ?? "none")\n\tUser: \(userId.debugDescription)")
+        logger.info("Ready to update Alexa Account\n\tid: \(amazonUserId)\n\tUser: \(userId.debugDescription)")
         return Future.map(on: connection) {self}
     }
     
     func didUpdate(on connection: PostgreSQLConnection) throws -> EventLoopFuture<AmazonAccount> {
-        logger.info("Updated Alexa Account\n\tid: \(amazonUserId ?? "none")\n\tUser: \(userId.debugDescription)")
+        logger.info("Updated Alexa Account\n\tid: \(amazonUserId)\n\tUser: \(userId.debugDescription)")
         return Future.map(on: connection) {self}
     }
 }
@@ -96,11 +96,11 @@ enum LWAUserScopeError : String {
 
 struct LWAAuthTokenResponse: Content {
     var accessCode:String //access code
-    var dummyUserId:String
+    var placeholderUserId:String
     
     enum CodingKeys : String, CodingKey {
         case accessCode = "code"
-        case dummyUserId = "state"
+        case placeholderUserId = "state"
     }
 }
 
@@ -141,7 +141,7 @@ struct LWAAccessTokenGrantError: Content {
 }
 
 struct LWASites {
-    static let mock:Bool = true
+    static let mock:Bool = false
     static let tokens:String = mock ? "http://toastylwa.mocklab.io/auth/o2/token" : "https://api.amazon.com/auth/o2/token"
     static let users:String = mock ? "http://toastylwa.mocklab.io/user/profile" : "https://api.amazon.com/user/profile"
 }
