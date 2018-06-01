@@ -3,23 +3,34 @@ import Vapor
 import FluentPostgreSQL
 
 final class User: Codable {
-    var id: Int?
+    var id: UUID?
     var name: String?
     var username: String?
     
     init() {
-        name = "Anonymous"
-        username = "anonymous"
+        name = nil
+        username = nil
     }
     
     init(name: String, username: String) {
         self.name = name
         self.username = username
     }
+    
+    func setName (_ name: String) {
+        self.name = name
+        return
+    }
+    
+    func setUsername (_ userName: String) {
+        self.username = userName
+        return
+    }
+    
 }
 
 
-extension User: PostgreSQLModel {}
+extension User: PostgreSQLUUIDModel {}
 extension User: Content {}
 extension User: Migration {}
 extension User: Parameter {}
@@ -28,10 +39,7 @@ extension User {
         return children(\.userId)
     }
     var fireplaces: Children<User, Fireplace> {
-        return children(\.userId)
+        return children(\.parentUserId)
     }
-}
-extension User {
-
 }
 

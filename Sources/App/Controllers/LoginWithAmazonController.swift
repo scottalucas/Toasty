@@ -10,45 +10,47 @@ struct LoginWithAmazonController: RouteCollection {
         let loginWithAmazonRoutes = router.grouped(ToastyAppRoutes.lwa.lwaRoot)
         
         func helloHandler (_ req: Request) throws -> String {
-            let logger = try req.make(Logger.self)
             logger.debug("Hit LWA base route.")
             return "Hello! You got LWA!"
         }
         
         func loginHandler (_ req: Request) throws -> Future<View> {
+            let logger = try req.make(Logger.self)
+            logger.info("Login handler hit with \(req.debugDescription)")
+            var context = [String: String]()
             guard
                 let site = Environment.get(ENVVariables.siteUrl),
                 let clientId = Environment.get(ENVVariables.lwaClientId)
                 else { throw Abort(.preconditionFailed, reason: "Server Error: Failed to retrieve correct ENV variables for LWA transaction.") }
-            var context = [String: String]()
-            do {
-                let fireplaces = try req.content.syncDecode([Fireplace].self)
-                if fireplaces.count == 0 {
-                    context["MSG"] = "No fireplaces found, please discover fireplaces first."
-                    return try req.view().render("/noFireplaces", context)
-                }
-                var sessionData = SessionData()
-                sessionData.fireplaces = fireplaces
-                sessionData.expiration = Date(timeIntervalSinceNow: (30 * 60))
-                //TO DO: Implement session database cleanup running every few minutes to delete stale sessions.
-                return sessionData.save(on: req)
-                    .flatMap(to: View.self) {sessionData in
-                        guard let strId = sessionData.id else {throw Abort(.notFound, reason: "Failed to create session record.")}
-                        context["SITEURL"] = "\(site)\(ToastyAppRoutes.lwa.auth)"
-                        context["PROFILE"] = LWATokenRequestConfig.profile
-                        context["INTERACTIVE"] = LWATokenRequestConfig.interactive
-                        context["RESPONSETYPE"] = LWATokenRequestConfig.responseType
-                        context["STATE"] = String(strId)
-                        context["LWACLIENTID"] = clientId
-                        return try req.view().render("AuthUserMgmt/lwaLogin", context)
-                }
-            } catch {
-                throw Abort(.notFound, reason: "Couldn't decode fireplaces from request.")
+            guard
+                let fireplaces = try? req.content.syncDecode([Fireplace].self),
+                fireplaces.count > 0
+                else {
+                    context["MSG"] = "No fireplaces found or malformed JSON in request, please discover fireplaces first."
+                    return try req.view().render("noFireplaces", context)
+            }
+            return User().save(on: req)
+                .flatMap(to: [Fireplace].self) { usr in
+                    guard let usrId = usr.id else { throw Abort(.notFound, reason: "Failed to create dummy user account")}
+                    context["SITEURL"] = "\(site)\(ToastyAppRoutes.lwa.auth)"
+                    context["PROFILE"] = LWATokenRequestConfig.profile
+                    context["INTERACTIVE"] = LWATokenRequestConfig.interactive
+                    context["RESPONSETYPE"] = LWATokenRequestConfig.responseType
+                    context["STATE"] = usrId.uuidString
+                    context["LWACLIENTID"] = clientId
+                    var saveResults: [Future<Fireplace>] = []
+                    for fireplace in fireplaces {
+                        saveResults.append(Fireplace.init(power: fireplace.powerSource, imp: fireplace.controlUrl, user: usrId, friendly: fireplace.friendlyName).save(on: req))
+                    }
+                    return saveResults.flatten(on: req)
+                } .flatMap (to: View.self) { fps in
+                    return try req.view().render("AuthUserMgmt/lwaLogin", context)
             }
         }
         
         func authHandler (_ req: Request) throws -> Future<View> {
-            //            let logger = try req.make(Logger.self)
+            let logger = try req.make(Logger.self)
+            logger.info(req.debugDescription)
             guard
                 let authResp = try? req.query.decode(LWAAuthTokenResponse.self)
                 else {
@@ -65,10 +67,9 @@ struct LoginWithAmazonController: RouteCollection {
                     throw Abort(.preconditionFailed, reason: "Server error: failed to create authentication environment.") }
             
             guard let client = try? req.make(Client.self) else { throw Abort(.failedDependency, reason: "Server error: could not create client to get amazon account.")}
-            //*******************
             
             let authRequest = LWAAccessTokenRequest.init(
-                codeIn: authResp.code,
+                codeIn: authResp.accessCode,
                 redirectUri: "\(site)\(ToastyAppRoutes.lwa.auth)",
                 clientId: clientId,
                 clientSecret: clientSecret)
@@ -76,31 +77,59 @@ struct LoginWithAmazonController: RouteCollection {
             guard let lwaAccessTokenGrant:Future<LWAAccessTokenGrant> = try? getLwaAccessTokenGrant(using: authRequest, with: client) else {
                 throw Abort(.notFound, reason: "Could not get access token grant.")}
             
-            //*******************
+            let dummyUserAccount:Future<User?> = getDummyUserAccount(dummyUserId: authResp.dummyUserId, context: req)
+            
+            let discoveredFireplaces:Future<[Fireplace]> = try getSessionFireplaces(using: dummyUserAccount, on: req)
             
             let amazonUserScope:Future<LWAUserScope> = try getAmazonScope(using: lwaAccessTokenGrant, on: req)
             
-            let fireplaces:Future<[Fireplace]> = try getSessionFireplaces(using: authResp.state, on: req)
-            
-            let userAcct:Future<User> = getUser(using: amazonUserScope, on: req) //if there is an existing user account, this function also deletes all associated Alexa records
-            
-            let amazonAcct:Future<AmazonAccount> = flatMap(to: AmazonAccount.self, amazonUserScope, userAcct) { scope, acct in
-                guard let azAcct = AmazonAccount.init(with: scope, user: acct) else {throw Abort(.notFound, reason: "Could not create Amazon account from provided user account.")}
-                return azAcct.save(on: req)
-            }
-            
-            let alexaFireplaces:Future<[AlexaFireplace]> = flatMap(to: [AlexaFireplace].self, fireplaces, amazonAcct) { fps, acct in
-                var alexaFps:[Future<AlexaFireplace>] = []
-                for fireplace in fps {
-                    guard let newAlexaFp = AlexaFireplace.init(childOf: fireplace, associatedWith: acct)?.save(on: req) else {continue}
-                    alexaFps.append( newAlexaFp )
+            let userAcct:Future<User> = flatMap(to: User.self, amazonUserScope, dummyUserAccount) { scope, dummyUser in
+                do {
+                    return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
+                        .flatMap (to: User.self) { optAzAcct in
+                            if let azAcct = optAzAcct {
+                                return try azAcct.user.get(on: req)
+                            } else if let dummyUsr = dummyUser {
+                                dummyUsr.setName("Anonymous")
+                                dummyUsr.setUsername("Anonymous")
+                                return dummyUsr.save(on: req)
+                            } else {
+                                return User.init(name: "Anonymous", username: "Anonymous").save(on: req)
+                            }
+                    }
+                } catch {
+                    return User.init(name: "Anonymous", username: "Anonymous").save(on: req)
                 }
-                return alexaFps.flatten(on: req)
             }
             
-            return flatMap(to: View.self, userAcct, amazonAcct) { uAcct, aAcct in
+            let amazonAcct:Future<AmazonAccount> = flatMap(to: AmazonAccount.self, amazonUserScope, userAcct) { scope, usrAcct in
+                guard usrAcct.id != nil else { throw Abort(.notFound, reason: "Could not create Amazon account, malformed user account.")}
+                do {
+                    return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
+                        .flatMap(to: AmazonAccount.self) { optAzAcct in
+                            if let azAcct = optAzAcct { //found an existing amazon account that matches the one returned, so update it
+                                azAcct.email = scope.email
+                                azAcct.name = scope.name
+                                azAcct.postalCode = scope.postal_code
+                                azAcct.userId = usrAcct.id!
+                                return azAcct.save(on: req)
+                            } else { //need to make a new Amazon account
+                                return AmazonAccount.init(with: scope, user: usrAcct)!.save(on: req)
+                            }
+                    }
+                } catch {
+                    return AmazonAccount.init(with: scope, user: usrAcct)!.save(on: req)
+                }
+            }
+            
+            let installMsg = installFireplaces(userAccount: userAcct, amazonAccount: amazonAcct, discoveredFps: discoveredFireplaces, context: req)
+            
+            return flatMap(to: View.self, userAcct, amazonAcct, dummyUserAccount, installMsg) { uAcct, aAcct, dAcct, msg in
+                if let garbageAcct = dAcct {
+                    garbageAcct.delete(on: req)
+                }
                 var context:[String:String] = [:]
-                context["MSG"] = "User account ID: \(String(describing: uAcct.id)) Amazon account ID: \(String(describing: aAcct.id))"
+                context["MSG"] = "Created user account ID: \(String(describing: uAcct.id)) Amazon account ID: \(String(describing: aAcct.amazonUserId))\n\n\(msg)"
                 return try req.view().render("AuthUserMgmt/lwaAmazonAuthSuccess", context)
             }
         }
@@ -124,33 +153,39 @@ struct LoginWithAmazonController: RouteCollection {
     
     //help functions, not route responders
     func getLwaAccessTokenGrant (using lwaAccessReq:LWAAccessTokenRequest, with client: Client) throws -> Future<LWAAccessTokenGrant> {
+        
         return client.post(LWASites.tokens, beforeSend: { newPost in
+            logger.info("Asking for token from: \(LWASites.tokens)")
             newPost.http.contentType = .urlEncodedForm
-            do { try newPost.content.encode(lwaAccessReq, as: .urlEncodedForm) } catch {
+            do { try newPost.content.encode(lwaAccessReq, as: .urlEncodedForm)
+                logger.info("Sending token request: \(newPost.debugDescription)")
+            } catch {
+                logger.info("Token request failed: \(newPost.debugDescription)")
                 throw Abort(.badRequest, reason: "Could not encode authorization request.")
             }
         })
             .map (to: LWAAccessTokenGrant.self) { res in
-                do { return try res.content.syncDecode(LWAAccessTokenGrant.self) }
+                let logger = try res.make(Logger.self)
+                do { logger.info("Token grant response: \(res.debugDescription)")
+                    return try res.content.syncDecode(LWAAccessTokenGrant.self) }
                 catch {
-                    do { let err = try res.content.syncDecode(LWAAccessTokenGrantError.self)
+                    logger.info("Access token grant failed.")
+                    if let err = try? res.content.syncDecode(LWAAccessTokenGrantError.self) {
                         throw Abort(.unauthorized, reason: err.error_description) }
-                    catch {
-                        throw Abort(.notFound, reason: "Unknown error") }
+                    else {
+                        throw Abort(.notFound, reason: "Unknown error")
+                    }
                 }
         }
     }
     
-    func getSessionFireplaces (using sessionId: String, on req: Request) throws -> Future<[Fireplace]> {
-        return try SessionData.query(on: req).filter(\.id == Int(sessionId)).first()
-            .map (to: [Fireplace].self) { data in
-                guard let sessionData = data else {
-                    throw Abort(.notFound, reason: "Could not retrieve fireplaces from session db.")
-                }
-                guard let fps = sessionData.fireplaces, fps.count > 0 else {
-                    throw Abort(.notFound, reason: "Session data did not include any fireplaces.")
-                }
-                return fps
+    func getSessionFireplaces (using dummyAcct: Future<User?>, on req: Request) throws -> Future<[Fireplace]> {
+        return dummyAcct.flatMap (to: [Fireplace].self) { optAcct in
+            guard let
+                acct = optAcct
+                else { throw Abort(.notFound, reason: "No fireplaces found, please try again after discovering fireplaces.")
+            }
+            return try acct.fireplaces.query(on: req).all()
         }
     }
     
@@ -159,9 +194,11 @@ struct LoginWithAmazonController: RouteCollection {
         return accessCode
             .flatMap(to: Response.self) { code in
                 let headers = HTTPHeaders.init([("x-amz-access-token", code.access_token)])
+                logger.info("Requesting user scope from: \(LWASites.users)")
                 return client.get(LWASites.users, headers: headers)
             }
             .map(to: LWAUserScope.self) { res in
+                logger.info("Got user scope from: \(res.debugDescription)")
                 guard res.http.status.code == 200 else {
                     throw Abort(.notFound, reason: LWAUserScopeError(rawValue: res.http.status.reasonPhrase)?.desc() ?? "Unknown transaction message.")
                 }
@@ -170,36 +207,75 @@ struct LoginWithAmazonController: RouteCollection {
         }
     }
     
-    func getAmazonAccount(using scope: Future<LWAUserScope>, on req: Request) -> Future<AmazonAccount?> {
-        return scope.flatMap(to: AmazonAccount?.self) { scope in
-            return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
+    func getDummyUserAccount (dummyUserId: String, context req: Request) -> Future<User?> {
+        guard let dummyUuid = UUID.init(dummyUserId) else { return Future.map(on: req) {nil} }
+        do {
+            return try User.query(on: req).filter(\.id == dummyUuid).first()
+        } catch {
+            return Future.map(on: req) {nil}
         }
     }
     
-    func getUser (using scope: Future<LWAUserScope>, on req: Request) -> Future<User> {
-        return scope.flatMap(to: AmazonAccount?.self) { scope in
-            return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
-            }
-            .flatMap (to: User.self) { optAcct in
-                guard let acct = optAcct else {
-                    return User.init().save(on: req)
+    func getUser (basedOn scope: Future<LWAUserScope>, orCreateFrom: Future<User?>, on req: Request) -> Future<User> {
+        return flatMap(to: User.self, scope, orCreateFrom) { scope, dummyUser in
+            do {
+                return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
+                    .flatMap (to: User.self) { optAzAcct in
+                        if let azAcct = optAzAcct {
+                            return try azAcct.user.get(on: req)
+                        } else if let dummyUsr = dummyUser {
+                            dummyUsr.setName("Anonymous")
+                            dummyUsr.setUsername("Anonymous")
+                            return dummyUsr.update(on: req)
+                        } else {
+                            return User.init(name: "Anonymous", username: "Anonymous").save(on: req)
+                        }
                 }
-                let user = try acct.user.get(on: req)
-                let _ = self.deleteAmazonAccounts(for: user, context: req)
-                return user
+            } catch {
+                return User.init(name: "Anonymous", username: "Anonymous").save(on: req)
+            }
         }
     }
     
-    func deleteAmazonAccounts (for associatedUser: Future<User>, context req: Request) -> Future<String> {
-        return associatedUser.flatMap (to: [AmazonAccount].self) { user in
-            return try user.amazonAccount.query(on: req).all() }
-            .map (to: Void.self) { accounts in
-                for account in accounts {
-                    let _ = try account.fireplaces.query(on: req).delete()
-                    let _ = account.delete(on: req)
-                }
-                return
+    func installFireplaces(userAccount: Future<User>, amazonAccount: Future<AmazonAccount>, discoveredFps: Future<[Fireplace]>, context req: Request) -> Future<String> {
+        return flatMap(to: String.self, userAccount, amazonAccount, discoveredFps) { usrAcct, azAcct, candidateFps in
+            guard let userId = usrAcct.id, let amazonUserId = azAcct.id else {throw Abort(.notFound, reason: "Malformed user or Amazon account object during fireplace installation.")}
+            var savedAzFpTracker:[Future<AlexaFireplace>] = Array ()
+            var updatedFpTracker:[Future<Fireplace>] = Array ()
+            for candidateFp in candidateFps {
+                try Fireplace.query(on: req).filter(\.controlUrl == candidateFp.controlUrl).filter(\.id != candidateFp.id).first() //check to see if we laready have an FP, based on the IMP url
+                    .map () { optExistingFp in
+                        if let existingFp = optExistingFp {//FP already in the system, need to update it.
+                            existingFp.friendlyName = candidateFp.friendlyName
+                            existingFp.powerSource = candidateFp.powerSource
+                            updatedFpTracker.append(existingFp.update(on: req))
+                            try existingFp.alexaFireplaces.query(on: req).first()
+                                .map () { optExistingAlexaFp in
+                                    if let existingAlexaFp = optExistingAlexaFp { //there is an existing Alexa FP record
+                                        existingAlexaFp.parentAmazonAccountId = amazonUserId
+                                        existingAlexaFp.parentFireplaceId = existingFp.id! //should be safe since this object came from a database read
+                                        savedAzFpTracker.append(existingAlexaFp.update(on: req))
+                                    } else { //need to create a new Alexa FP record
+                                        savedAzFpTracker.append(AlexaFireplace(childOf: existingFp, associatedWith: azAcct)!.save(on: req)) //should be safe since existingFp is from a db read.
+                                    }
+                                }
+                        } else { //make a permanent FP from the candidate FP
+                            candidateFp.parentUserId = userId
+                            candidateFp.update(on: req)
+                            .map () { savedFp in //stopping point, we're not creating AZ fireplaces correctly here
+                                guard
+                                    let newAzFp = AlexaFireplace.init(childOf: savedFp, associatedWith: azAcct)
+                                    else {throw Abort(.notFound, reason: "Failed to create new fireplace during fireplace installation")}
+                                let savedAzFp = newAzFp.save(on: req)
+                                savedAzFpTracker.append(savedAzFp)
+                            }
+                        } //end else
+                }//end map
+            } //end loop
+            return flatMap(to: String.self, savedAzFpTracker.flatten(on: req), updatedFpTracker.flatten(on: req)) { azUpdates, fpUpdates in
+                let outputMessage = "Updated \(azUpdates.count) Alexa records and \(fpUpdates.count) fireplace records."
+                return Future.map(on: req) {outputMessage}
             }
-            .transform(to: "Complete")
+        }
     }
 }

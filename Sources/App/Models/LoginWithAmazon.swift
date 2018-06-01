@@ -9,8 +9,8 @@ import Foundation
 import Vapor
 import FluentPostgreSQL
 
-final class AmazonAccount:Codable, Model {
-    var id: Int?
+final class AmazonAccount:Codable, PostgreSQLUUIDModel {
+    var id: UUID?
     var amazonUserId: String
     var email: String?
     var name: String?
@@ -18,20 +18,42 @@ final class AmazonAccount:Codable, Model {
     var userId: User.ID //foreign key to main user account
 
     init? (with lwaScope: LWAUserScope, user: User) {
-        guard let userId = user.id else {return nil}
+        guard let myId = user.id else {return nil}
         amazonUserId = lwaScope.user_id
         email = lwaScope.email
         name = lwaScope.name
         postalCode = lwaScope.postal_code
-        self.userId = userId
+        self.userId = myId
+    }
+    
+    func didCreate(on connection: PostgreSQLConnection) throws -> EventLoopFuture<AmazonAccount> {
+        logger.info("Created new Alexa Account\n\tid: \(amazonUserId ?? "none")\n\tUser: \(userId.debugDescription)")
+        return Future.map(on: connection) {self}
+    }
+    
+    func willUpdate(on connection: PostgreSQLConnection) throws -> EventLoopFuture<AmazonAccount> {
+        logger.info("Ready to update Alexa Account\n\tid: \(amazonUserId ?? "none")\n\tUser: \(userId.debugDescription)")
+        return Future.map(on: connection) {self}
+    }
+    
+    func didUpdate(on connection: PostgreSQLConnection) throws -> EventLoopFuture<AmazonAccount> {
+        logger.info("Updated Alexa Account\n\tid: \(amazonUserId ?? "none")\n\tUser: \(userId.debugDescription)")
+        return Future.map(on: connection) {self}
     }
 }
 
 
 
-extension AmazonAccount: PostgreSQLModel {}
+//extension AmazonAccount: PostgreSQLModel {}
 extension AmazonAccount: Content {}
-extension AmazonAccount: Migration {}
+extension AmazonAccount: Migration {
+    static func prepare(on connection: PostgreSQLConnection) -> Future<Void> {
+        return Database.create(self, on: connection) { builder in
+            try addProperties(to: builder)
+            try builder.addReference(from: \.userId, to: \User.id)
+        }
+    }
+}
 extension AmazonAccount: Parameter {}
 extension AmazonAccount {
     var user: Parent<AmazonAccount, User> {
@@ -73,19 +95,19 @@ enum LWAUserScopeError : String {
 }
 
 struct LWAAuthTokenResponse: Content {
-    var code:String //access code
-    var state:String
+    var accessCode:String //access code
+    var dummyUserId:String
     
     enum CodingKeys : String, CodingKey {
-        case code = "accessCode"
-        case state = "sessionId"
+        case accessCode = "code"
+        case dummyUserId = "state"
     }
 }
 
 struct LWAAuthTokenResponseError: Content {
     var error:String
     var error_description:String
-    var error_uri:String
+    var error_uri:String?
     var state:String?
 }
 
@@ -115,12 +137,13 @@ struct LWAAccessTokenGrant: Content {
 struct LWAAccessTokenGrantError: Content {
     var error:String
     var error_description: String
-    var error_uri: String
+    var error_uri: String?
 }
 
 struct LWASites {
-    static let tokens:String = "https://api.amazon.com/auth/o2/token"
-    static let users:String = "https://api.amazon.com/user/profile"
+    static let mock:Bool = true
+    static let tokens:String = mock ? "http://toastylwa.mocklab.io/auth/o2/token" : "https://api.amazon.com/auth/o2/token"
+    static let users:String = mock ? "http://toastylwa.mocklab.io/user/profile" : "https://api.amazon.com/user/profile"
 }
 
 struct LWATokenRequestConfig {

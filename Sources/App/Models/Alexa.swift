@@ -3,8 +3,7 @@ import Vapor
 import FluentPostgreSQL
 
 final class AlexaFireplace: Codable {
-    var id: Int? //use as Alexa endpoint ID.
-    var friendlyName: String //get this from the BT interface
+    var id: UUID? //use as Alexa endpoint ID.
     var status: Status
     var parentFireplaceId: Fireplace.ID //foreign key to the generic fireplace
     var parentAmazonAccountId: AmazonAccount.ID //foreign key to the associated Alexa account
@@ -15,15 +14,19 @@ final class AlexaFireplace: Codable {
         guard let fpId = fireplace.id, let azId = amazonAccount.id else { return nil }
         parentFireplaceId = fpId
         parentAmazonAccountId = azId
-        friendlyName = fireplace.friendlyName
-        self.status = (fireplace.powerSource != "line") ? Status.notRegisterable : Status.availableForRegistration
+        self.status = (fireplace.powerSource != .line) ? Status.notRegisterable : Status.availableForRegistration
+    }
+    
+    func didCreate(on connection: PostgreSQLConnection) throws -> EventLoopFuture<AlexaFireplace> {
+        logger.info("Created new Alexa Fireplace\n\tid: \(id?.uuidString ?? "none")\n\tParent AZ account: \(parentAmazonAccountId)")
+        return Future.map(on: connection) {self}
     }
 }
 
 struct AlexaFireplaceForDiscovery: Codable { //use this to create the discovery response
-    var endpointId:Int
+    var endpointId:AlexaFireplace.ID
     var manufacturerName:String = "Toasty Fireplace"
-    var friendlyName:String
+//    var friendlyName:String
     var description:String = "Smart home fireplace controller"
     var displayCategories:[AlexaDisplayCategories] = [.SWITCH]
     var cookie:[String:String] = [:]
@@ -31,7 +34,6 @@ struct AlexaFireplaceForDiscovery: Codable { //use this to create the discovery 
     init? (from fireplace:AlexaFireplace) {
         guard let id = fireplace.id else {return nil}
         endpointId = id
-        friendlyName = fireplace.friendlyName
     }
 }
 
@@ -154,9 +156,17 @@ final class AlexaToastyPowerControllerInterfaceRequest: Codable {
     }
 }
 
-extension AlexaFireplace:PostgreSQLModel {}
+extension AlexaFireplace:PostgreSQLUUIDModel {}
 extension AlexaFireplace:Content {}
-extension AlexaFireplace:Migration {}
+extension AlexaFireplace:Migration {
+    static func prepare(on connection: PostgreSQLConnection) -> Future<Void> {
+        return Database.create(self, on: connection) { builder in
+            try addProperties(to: builder)
+            try builder.addReference(from: \.parentAmazonAccountId, to: \AmazonAccount.id)
+            try builder.addReference(from: \.parentFireplaceId, to: \Fireplace.id)
+        }
+    }
+}
 extension AlexaFireplace:Parameter {}
 extension AlexaFireplace {
     var parentFireplace: Parent<AlexaFireplace, Fireplace> {
