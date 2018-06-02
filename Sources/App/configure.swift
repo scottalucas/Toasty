@@ -59,13 +59,13 @@ public func configure(
             }
         }
         else {
-            databaseName = Environment.get("DATABASE_DB") ?? "vapor"
+            databaseName = Environment.get("DATABASEDB") ?? "vapor"
             databasePort = 5432
         }
         
-        let hostname = Environment.get("DATABASE_HOSTNAME") ?? "localhost"
-        let username = Environment.get("DATABASE_USER") ?? "vapor"
-        let password = Environment.get("DATABASE_PASSWORD") ?? "password"
+        let hostname = Environment.get("DATABASEHOSTNAME") ?? "localhost"
+        let username = Environment.get("DATABASEUSER") ?? "vapor"
+        let password = Environment.get("DATABASEPASSWORD") ?? "password"
         databaseConfig = PostgreSQLDatabaseConfig(hostname: hostname, port: databasePort, username: username, database: databaseName, password: password)
     }
     let database = PostgreSQLDatabase(config: databaseConfig)

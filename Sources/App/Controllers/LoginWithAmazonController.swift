@@ -13,6 +13,33 @@ struct LoginWithAmazonController: RouteCollection {
             logger.debug("Hit LWA base route.")
             return "Hello! You got LWA!"
         }
+        func loginHandlerGet (_ req: Request) throws -> Future<View> {
+            let logger = try req.make(Logger.self)
+            logger.info("Login test handler hit with \(req.debugDescription)")
+            var context = [String: String]()
+            guard
+                let site = Environment.get(ENVVariables.siteUrl),
+                let clientId = Environment.get(ENVVariables.lwaClientId)
+                else { throw Abort(.preconditionFailed, reason: "Server Error: Failed to retrieve correct ENV variables for LWA transaction.") }
+                let fireplaces = [Fireplace(power: .battery, imp: "testurl1", user: UUID.init(), friendly: "I'm a new fp"), Fireplace(power: .line, imp: "testurl2", user: UUID.init(), friendly: "I'm a new fp too!")]
+            return User(name: "Placeholder", username: "Placeholder") .save(on: req)
+                .flatMap(to: [Fireplace].self) { usr in
+                    guard let usrId = usr.id else { throw Abort(.notFound, reason: "Failed to create placeholder user account")}
+                    context["SITEURL"] = "\(site)\(ToastyAppRoutes.lwa.auth)"
+                    context["PROFILE"] = LWATokenRequestConfig.profile
+                    context["INTERACTIVE"] = LWATokenRequestConfig.interactive
+                    context["RESPONSETYPE"] = LWATokenRequestConfig.responseType
+                    context["STATE"] = usrId.uuidString
+                    context["LWACLIENTID"] = clientId
+                    var saveResults: [Future<Fireplace>] = []
+                    for fireplace in fireplaces {
+                        saveResults.append(Fireplace.init(power: fireplace.powerSource, imp: fireplace.controlUrl, user: usrId, friendly: fireplace.friendlyName).save(on: req))
+                    }
+                    return saveResults.flatten(on: req)
+                } .flatMap (to: View.self) { fps in
+                    return try req.view().render("AuthUserMgmt/lwaLogin", context)
+            }
+        }
         
         func loginHandler (_ req: Request) throws -> Future<View> {
             let logger = try req.make(Logger.self)
@@ -153,6 +180,7 @@ struct LoginWithAmazonController: RouteCollection {
         loginWithAmazonRoutes.get("auth", use: authHandler)
         loginWithAmazonRoutes.post("access", use: accessHandler)
         loginWithAmazonRoutes.post("login", use: loginHandler)
+        loginWithAmazonRoutes.get("login", use: loginHandlerGet)
     }
     //*******************************************************************************
     //help functions, not route responders
