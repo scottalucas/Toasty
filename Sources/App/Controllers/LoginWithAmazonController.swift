@@ -11,11 +11,13 @@ struct LoginWithAmazonController: RouteCollection {
         
         func helloHandler (_ req: Request) throws -> String {
             logger.debug("Hit LWA base route.")
-            return "Hello! You got LWA!"
+            let lwaInteractionMode = LWAInteractionMode(rawValue: (try? req.parameters.next(String.self)) ?? LWAInteractionMode.auto.rawValue)?.rawValue ?? "auto"
+            return "Hello! You got LWA! With parameter \(lwaInteractionMode)"
         }
         func loginHandlerGet (_ req: Request) throws -> Future<View> {
             let logger = try req.make(Logger.self)
             logger.info("Login test handler hit with \(req.debugDescription)")
+            let lwaInteractionMode = LWAInteractionMode(rawValue: (try? req.parameters.next(String.self)) ?? LWAInteractionMode.auto.rawValue)?.rawValue ?? "auto"
             var context = [String: String]()
             guard
                 let site = Environment.get(ENVVariables.siteUrl),
@@ -27,7 +29,7 @@ struct LoginWithAmazonController: RouteCollection {
                     guard let usrId = usr.id else { throw Abort(.notFound, reason: "Failed to create placeholder user account")}
                     context["SITEURL"] = "\(site)\(ToastyAppRoutes.lwa.auth)"
                     context["PROFILE"] = LWATokenRequestConfig.profile
-                    context["INTERACTIVE"] = LWATokenRequestConfig.interactive
+                    context["INTERACTIVE"] = lwaInteractionMode
                     context["RESPONSETYPE"] = LWATokenRequestConfig.responseType
                     context["STATE"] = usrId.uuidString
                     context["LWACLIENTID"] = clientId
@@ -44,6 +46,7 @@ struct LoginWithAmazonController: RouteCollection {
         func loginHandler (_ req: Request) throws -> Future<View> {
             let logger = try req.make(Logger.self)
             logger.info("Login handler hit with \(req.debugDescription)")
+            let lwaInteractionMode = LWAInteractionMode(rawValue: (try? req.parameters.next(String.self)) ?? LWAInteractionMode.auto.rawValue)?.rawValue ?? "auto"
             var context = [String: String]()
             guard
                 let site = Environment.get(ENVVariables.siteUrl),
@@ -61,7 +64,7 @@ struct LoginWithAmazonController: RouteCollection {
                     guard let usrId = usr.id else { throw Abort(.notFound, reason: "Failed to create placeholder user account")}
                     context["SITEURL"] = "\(site)\(ToastyAppRoutes.lwa.auth)"
                     context["PROFILE"] = LWATokenRequestConfig.profile
-                    context["INTERACTIVE"] = LWATokenRequestConfig.interactive
+                    context["INTERACTIVE"] = lwaInteractionMode
                     context["RESPONSETYPE"] = LWATokenRequestConfig.responseType
                     context["STATE"] = usrId.uuidString
                     context["LWACLIENTID"] = clientId
@@ -104,13 +107,18 @@ struct LoginWithAmazonController: RouteCollection {
             guard let lwaAccessTokenGrant:Future<LWAAccessTokenGrant> = try? getLwaAccessTokenGrant(using: authRequest, with: client) else {
                 throw Abort(.notFound, reason: "Could not get access token grant.")}
             
-            let placeholderUserAccount:Future<User?> = getPlaceholderUserAccount(placeholderUserId: authResp.placeholderUserId, context: req)
+            guard let placeholderUserAccount:Future<User?> = try? getPlaceholderUserAccount(placeholderUserId: authResp.placeholderUserId, context: req) else {
+                    throw Abort(.notFound, reason: "Please try again.") //should toss this back to the app and restart the process if possible.
+                    }
             
             let discoveredFireplaces:Future<[Fireplace]> = try getSessionFireplaces(using: placeholderUserAccount, on: req)
             
             let amazonUserScope:Future<LWAUserScope> = try getAmazonScope(using: lwaAccessTokenGrant, on: req)
             
             let userAcct:Future<User> = flatMap(to: User.self, amazonUserScope, placeholderUserAccount) { scope, placeholderUser in
+//                guard placeholderUser != nil else {
+//                    return req.redirect(to: "\(site)\(ToastyAppRoutes.lwa.login)")
+//                }
                 do {
                     return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
                         .flatMap (to: User.self) { optAzAcct in
@@ -176,18 +184,21 @@ struct LoginWithAmazonController: RouteCollection {
             return retText
         }
         
+        loginWithAmazonRoutes.get("hello", String.parameter, use: helloHandler)
         loginWithAmazonRoutes.get("hello", use: helloHandler)
         loginWithAmazonRoutes.get("auth", use: authHandler)
         loginWithAmazonRoutes.post("access", use: accessHandler)
+        loginWithAmazonRoutes.post("login", String.parameter, use: loginHandler)
         loginWithAmazonRoutes.post("login", use: loginHandler)
         loginWithAmazonRoutes.get("login", use: loginHandlerGet)
+        loginWithAmazonRoutes.post("login", String.parameter, use: loginHandler)
+        loginWithAmazonRoutes.get("login", String.parameter, use: loginHandlerGet)
     }
     //*******************************************************************************
     //help functions, not route responders
     //*******************************************************************************
 
     func getLwaAccessTokenGrant (using lwaAccessReq:LWAAccessTokenRequest, with client: Client) throws -> Future<LWAAccessTokenGrant> {
-        
         return client.post(LWASites.tokens, beforeSend: { newPost in
             logger.info("Asking for token from: \(LWASites.tokens)")
             newPost.http.contentType = .urlEncodedForm
@@ -241,12 +252,12 @@ struct LoginWithAmazonController: RouteCollection {
         }
     }
     
-    func getPlaceholderUserAccount (placeholderUserId: String, context req: Request) -> Future<User?> {
+    func getPlaceholderUserAccount (placeholderUserId: String, context req: Request) throws -> Future<User?> {
         guard let placeholderUuid = UUID.init(placeholderUserId) else { return Future.map(on: req) {nil} }
         do {
             return try User.query(on: req).filter(\.id == placeholderUuid).first()
         } catch {
-            return Future.map(on: req) {nil}
+            throw Abort(.notFound, reason: "Could not retrieve placeholder account, try using always for LWA interation mode.")
         }
     }
     

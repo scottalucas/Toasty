@@ -24,4 +24,3 @@ struct ToastyAppRoutes {
         static let login = "/\(lwaRoot)/login"
     }
 }
-

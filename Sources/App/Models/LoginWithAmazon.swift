@@ -148,6 +148,9 @@ struct LWASites {
 
 struct LWATokenRequestConfig {
     static let profile:String = "profile:user_id"
-    static let interactive:String = "auto"
     static let responseType:String = "code"
+}
+
+enum LWAInteractionMode: String {
+    case always, auto, never
 }
