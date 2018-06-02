@@ -28,16 +28,46 @@ public func configure(
 
     // Configure a database
 //    try services.register(FluentPostgreSQLProvider())
+//    var databases = DatabasesConfig()
+//    guard let hostname = Environment.get("DATABASEHOSTNAME") else {throw Abort(.failedDependency, reason: "Database host name not found")}
+//    guard let username = Environment.get("DATABASEUSER") else {throw Abort(.failedDependency, reason: "Database username name not found")}
+//    guard let databaseName = Environment.get("DATABASEDB") else {throw Abort(.failedDependency, reason: "Database name not found")}
+//    guard let password = Environment.get("DATABASEPASSWORD") else {throw Abort(.failedDependency, reason: "Database password name not found")}
+//    let databaseConfig = PostgreSQLDatabaseConfig(
+//        hostname: hostname,
+//        username: username,
+//        database: databaseName,
+//        password: password)
+//    let database = PostgreSQLDatabase(config: databaseConfig)
+//    databases.add(database: database, as: .psql)
+//    services.register(databases)
+    
+    // Configure a database
     var databases = DatabasesConfig()
-    guard let hostname = Environment.get("DATABASEHOSTNAME") else {throw Abort(.failedDependency, reason: "Database host name not found")}
-    guard let username = Environment.get("DATABASEUSER") else {throw Abort(.failedDependency, reason: "Database username name not found")}
-    guard let databaseName = Environment.get("DATABASEDB") else {throw Abort(.failedDependency, reason: "Database name not found")}
-    guard let password = Environment.get("DATABASEPASSWORD") else {throw Abort(.failedDependency, reason: "Database password name not found")}
-    let databaseConfig = PostgreSQLDatabaseConfig(
-        hostname: hostname,
-        username: username,
-        database: databaseName,
-        password: password)
+    let databaseConfig: PostgreSQLDatabaseConfig
+    if let url = Environment.get("DATABASE_URL") {
+        databaseConfig = try PostgreSQLDatabaseConfig(url: url)
+    } else {
+        let databaseName: String
+        let databasePort: Int
+        if (env == .testing) {
+            databaseName = "vapor-test"
+            if let testPort = Environment.get("DATABASE_PORT") {
+                databasePort = Int(testPort) ?? 5433
+            } else {
+                databasePort = 5433
+            }
+        }
+        else {
+            databaseName = Environment.get("DATABASE_DB") ?? "vapor"
+            databasePort = 5432
+        }
+        
+        let hostname = Environment.get("DATABASE_HOSTNAME") ?? "localhost"
+        let username = Environment.get("DATABASE_USER") ?? "vapor"
+        let password = Environment.get("DATABASE_PASSWORD") ?? "password"
+        databaseConfig = PostgreSQLDatabaseConfig(hostname: hostname, port: databasePort, username: username, database: databaseName, password: password)
+    }
     let database = PostgreSQLDatabase(config: databaseConfig)
     databases.add(database: database, as: .psql)
     services.register(databases)
