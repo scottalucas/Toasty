@@ -81,60 +81,68 @@ enum AlexaDisplayCategories: String, Codable {
 }
 
 struct AlexaMessage:Content {
-    var directive:AlexaDirective
+    let directive:AlexaDirective
 }
 
 struct AlexaDirective:Codable {
-    var header:AlexaHeader
-    var payload:AlexaPayload
-    var endpoint:AlexaEndpoint?
+    let header:AlexaHeader
+    let payload:AlexaPayload
+    let endpoint:AlexaEndpoint?
 }
 
 struct AlexaEvent:Codable {
-    var header:AlexaHeader
-    var endpoint:AlexaEndpoint
-    var payload:AlexaPayload
+    let header:AlexaHeader
+    let endpoint:AlexaEndpoint
+    let payload:AlexaPayload
 }
 
 struct AlexaHeader:Codable {
-    var namespace: String
-    var name:String
-    var payloadVersion:String
-    var messageId:String
-    var correlationToken:String?
-}
-
-struct AlexaContext:Codable {
-    var properties: [AlexaProperty]?
-}
-
-struct AlexaEndpoint:Codable {
-    var scope:AlexaScope
-    var endpointId:String
-    var cookie: [String:String]
-}
-
-struct AlexaScope:Codable {
-    var type:String?
-    var partition:String?
-    var userId:String?
-    var token:String
-}
-
-struct AlexaProperty:Codable {
-    var namespace:String
-    var name:String
-    var value:String
-    var timeOfSample: String
-    var uncertaintyInMilliseconds:Int
+    let namespace: String
+    let name:String
+    let payloadVersion:String
+    let messageId:String
+    let correlationToken:String?
 }
 
 struct AlexaPayload:Codable {
-    var scope:AlexaScope?
+    let scope:AlexaScope?
+}
+
+struct AlexaScope:Codable {
+    let type:String?
+    let partition:String?
+    let userId:String?
+    let token:String
+}
+
+struct AlexaContext:Codable {
+    let properties: [AlexaProperty]?
+}
+
+struct AlexaEndpoint:Codable {
+    let scope:AlexaScope
+    let endpointId:String
+    let cookie: [String:String]
+}
+
+struct AlexaProperty:Codable {
+    let namespace:String
+    let name:String
+    let value:String
+    let timeOfSample: String
+    let uncertaintyInMilliseconds:Int
 }
 
 struct AlexaTestMessage: Content {
     var testMessage: String
+}
+
+struct AlexaDiscoveryRequest: Codable {
+    let directive:Directive
+    struct Directive: Codable {
+        let header: AlexaHeader
+        let payload: AlexaPayload
+    }
 }
 
 final class AlexaToastyPowerControllerInterfaceRequest: Codable {

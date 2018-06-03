@@ -17,7 +17,7 @@ final class AmazonAccount:Codable, PostgreSQLUUIDModel {
     var postalCode: String?
     var userId: User.ID //foreign key to main user account
 
-    init? (with lwaScope: LWAUserScope, user: User) {
+    init? (with lwaScope: LWACustomerProfileResponse, user: User) {
         guard let myId = user.id else {return nil}
         amazonUserId = lwaScope.user_id
         email = lwaScope.email
@@ -64,11 +64,17 @@ extension AmazonAccount {
     }
 }
 
-struct LWAUserScope:Content {
+struct LWACustomerProfileResponse:Content {
     var user_id: String
     var email: String?
     var name: String?
     var postal_code: String?
+}
+
+struct LWACustomerProfileResponseError: Content {
+    let error: String
+    let error_description: String
+    let request_id: String
 }
 
 enum LWAUserScopeError : String {

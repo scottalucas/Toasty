@@ -7,7 +7,7 @@ struct LoginWithAmazonController: RouteCollection {
     
     func boot(router: Router) throws {
         
-        let loginWithAmazonRoutes = router.grouped(ToastyAppRoutes.lwa.lwaRoot)
+        let loginWithAmazonRoutes = router.grouped(ToastyAppRoutes.lwa.root)
         
         func helloHandler (_ req: Request) throws -> String {
             logger.debug("Hit LWA base route.")
@@ -113,7 +113,7 @@ struct LoginWithAmazonController: RouteCollection {
             
             let discoveredFireplaces:Future<[Fireplace]> = try getSessionFireplaces(using: placeholderUserAccount, on: req)
             
-            let amazonUserScope:Future<LWAUserScope> = try getAmazonScope(using: lwaAccessTokenGrant, on: req)
+            let amazonUserScope:Future<LWACustomerProfileResponse> = try getAmazonScope(using: lwaAccessTokenGrant, on: req)
             
             let userAcct:Future<User> = flatMap(to: User.self, amazonUserScope, placeholderUserAccount) { scope, placeholderUser in
 //                guard placeholderUser != nil else {
@@ -234,7 +234,7 @@ struct LoginWithAmazonController: RouteCollection {
         }
     }
     
-    func getAmazonScope (using accessCode: Future<LWAAccessTokenGrant>, on req: Request) throws -> Future<LWAUserScope> {
+    func getAmazonScope (using accessCode: Future<LWAAccessTokenGrant>, on req: Request) throws -> Future<LWACustomerProfileResponse> {
         guard let client = try? req.make(Client.self) else { throw Abort(.failedDependency, reason: "Could not create client to get amazon account.")}
         return accessCode
             .flatMap(to: Response.self) { code in
@@ -242,16 +242,47 @@ struct LoginWithAmazonController: RouteCollection {
                 logger.info("Requesting user scope from: \(LWASites.users)")
                 return client.get(LWASites.users, headers: headers)
             }
-            .map(to: LWAUserScope.self) { res in
+            .map(to: LWACustomerProfileResponse.self) { res in
                 logger.info("Got user scope from: \(res.debugDescription)")
                 guard res.http.status.code == 200 else {
                     throw Abort(.notFound, reason: LWAUserScopeError(rawValue: res.http.status.reasonPhrase)?.desc() ?? "Unknown transaction message.")
                 }
-                guard let scope = try? res.content.syncDecode(LWAUserScope.self) else {throw Abort(.notFound, reason: "Could not decode user scope from Amazon.")}
+                guard let scope = try? res.content.syncDecode(LWACustomerProfileResponse.self) else {throw Abort(.notFound, reason: "Could not decode user scope from Amazon.")}
                 return scope
         }
     }
     
+    func getAmazonAccount (usingToken token: String, on req: Request) throws -> Future<AmazonAccount> {
+        guard let client = try? req.make(Client.self) else { throw Abort(.failedDependency, reason: "Could not create client to get amazon account.")}
+        let headers = HTTPHeaders.init([("x-amz-access-token", token)])
+        return client.get(LWASites.users, headers: headers)
+            .flatMap(to: AmazonAccount.self) { res in
+                switch res.http.status.code {
+                case 200:
+                    do {
+                        return try res.content.decode(LWACustomerProfileResponse.self)
+                            .flatMap(to: AmazonAccount?.self) { scope in
+                                try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
+                            } .map (to: AmazonAccount.self) { optAcct in
+                                guard let acct = optAcct else {
+                                    throw Abort(.notFound, reason: "Could not find Amazon account in database.")
+                                }
+                                return acct
+                                }
+                    } catch {
+                        throw Abort(.notFound, reason: "Could not find Amazon account in database.")
+                    }
+                default:
+                    do {
+                        let profileRetrieveError = try res.content.syncDecode(LWACustomerProfileResponseError.self)
+                        throw Abort(.notFound, reason: "Couldn't retrieve Amazon account, error: \(profileRetrieveError.error), detail: \(profileRetrieveError.error_description)")
+                    } catch {
+                        throw Abort(.notFound, reason: "Failed to retrieve Amazon user id, error code: \(res.http.status.code)")
+                    }
+                }
+        }
+    }
+
     func getPlaceholderUserAccount (placeholderUserId: String, context req: Request) throws -> Future<User?> {
         guard let placeholderUuid = UUID.init(placeholderUserId) else { return Future.map(on: req) {nil} }
         do {
@@ -261,7 +292,7 @@ struct LoginWithAmazonController: RouteCollection {
         }
     }
     
-    func getUser (basedOn scope: Future<LWAUserScope>, orCreateFrom: Future<User?>, on req: Request) -> Future<User> {
+    func getUser (basedOn scope: Future<LWACustomerProfileResponse>, orCreateFrom: Future<User?>, on req: Request) -> Future<User> {
         return flatMap(to: User.self, scope, orCreateFrom) { scope, placeholderUser in
             do {
                 return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()

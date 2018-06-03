@@ -21,8 +21,6 @@ final class Fireplace: Codable {
     }
 }
 
-
-
 extension Fireplace: PostgreSQLUUIDModel {}
 extension Fireplace: Content {}
 extension Fireplace: Migration {

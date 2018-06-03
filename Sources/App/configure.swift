@@ -25,22 +25,6 @@ public func configure(
     //
     try services.register(LeafProvider())
     config.prefer(LeafRenderer.self, for: ViewRenderer.self)
-
-    // Configure a database
-//    try services.register(FluentPostgreSQLProvider())
-//    var databases = DatabasesConfig()
-//    guard let hostname = Environment.get("DATABASEHOSTNAME") else {throw Abort(.failedDependency, reason: "Database host name not found")}
-//    guard let username = Environment.get("DATABASEUSER") else {throw Abort(.failedDependency, reason: "Database username name not found")}
-//    guard let databaseName = Environment.get("DATABASEDB") else {throw Abort(.failedDependency, reason: "Database name not found")}
-//    guard let password = Environment.get("DATABASEPASSWORD") else {throw Abort(.failedDependency, reason: "Database password name not found")}
-//    let databaseConfig = PostgreSQLDatabaseConfig(
-//        hostname: hostname,
-//        username: username,
-//        database: databaseName,
-//        password: password)
-//    let database = PostgreSQLDatabase(config: databaseConfig)
-//    databases.add(database: database, as: .psql)
-//    services.register(databases)
     
     // Configure a database
     var databases = DatabasesConfig()
@@ -79,6 +63,9 @@ public func configure(
     migrations.add(model: AlexaFireplace.self, database: .psql)
 //    migrations.add(model: SessionData.self, database: .psql)
     services.register(migrations)
+    
+    let serverConfiure = NIOServerConfig.default(hostname: "192.168.1.111", port: 8080)
+    services.register(serverConfiure)
 }
 
 struct ENVVariables {
