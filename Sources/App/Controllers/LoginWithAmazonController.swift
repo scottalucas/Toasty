@@ -262,7 +262,8 @@ struct LoginWithAmazonController: RouteCollection {
                     do {
                         return try res.content.decode(LWACustomerProfileResponse.self)
                             .flatMap(to: AmazonAccount?.self) { scope in
-                                try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
+                                logger.info("Got Amazon id: \(scope.user_id)")
+                                return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
                             } .map (to: AmazonAccount.self) { optAcct in
                                 guard let acct = optAcct else {
                                     throw Abort(.notFound, reason: "Could not find Amazon account in database.")
