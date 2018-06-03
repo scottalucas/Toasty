@@ -14,6 +14,7 @@ struct LoginWithAmazonController: RouteCollection {
             let lwaInteractionMode = LWAInteractionMode(rawValue: (try? req.parameters.next(String.self)) ?? LWAInteractionMode.auto.rawValue)?.rawValue ?? "auto"
             return "Hello! You got LWA! With parameter \(lwaInteractionMode)"
         }
+
         func loginHandlerGet (_ req: Request) throws -> Future<View> {
             let logger = try req.make(Logger.self)
             logger.info("Login test handler hit with \(req.debugDescription)")
@@ -116,9 +117,6 @@ struct LoginWithAmazonController: RouteCollection {
             let amazonUserScope:Future<LWACustomerProfileResponse> = try getAmazonScope(using: lwaAccessTokenGrant, on: req)
             
             let userAcct:Future<User> = flatMap(to: User.self, amazonUserScope, placeholderUserAccount) { scope, placeholderUser in
-//                guard placeholderUser != nil else {
-//                    return req.redirect(to: "\(site)\(ToastyAppRoutes.lwa.login)")
-//                }
                 do {
                     return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
                         .flatMap (to: User.self) { optAzAcct in
@@ -159,7 +157,8 @@ struct LoginWithAmazonController: RouteCollection {
             
             let installMsg = installFireplaces(userAccount: userAcct, amazonAccount: amazonAcct, discoveredFps: discoveredFireplaces, context: req)
             
-            return flatMap(to: View.self, userAcct, amazonAcct, placeholderUserAccount, installMsg) { uAcct, aAcct, dAcct, msg in
+            return flatMap(to: View.self, userAcct, amazonAcct, placeholderUserAccount, installMsg) {
+                uAcct, aAcct, dAcct, msg in
                 var deleteMessage:Future<String>
                 if let garbageAcct = dAcct, garbageAcct.name == "Placeholder" {
                     deleteMessage = garbageAcct.delete(on: req).transform(to: "Deleted one placeholder account")
@@ -251,38 +250,7 @@ struct LoginWithAmazonController: RouteCollection {
                 return scope
         }
     }
-    
-    func getAmazonAccount (usingToken token: String, on req: Request) throws -> Future<AmazonAccount> {
-        guard let client = try? req.make(Client.self) else { throw Abort(.failedDependency, reason: "Could not create client to get amazon account.")}
-        let headers = HTTPHeaders.init([("x-amz-access-token", token)])
-        return client.get(LWASites.users, headers: headers)
-            .flatMap(to: AmazonAccount.self) { res in
-                switch res.http.status.code {
-                case 200:
-                    do {
-                        return try res.content.decode(LWACustomerProfileResponse.self)
-                            .flatMap(to: AmazonAccount?.self) { scope in
-                                logger.info("Got Amazon id: \(scope.user_id)")
-                                return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
-                            } .map (to: AmazonAccount.self) { optAcct in
-                                guard let acct = optAcct else {
-                                    throw Abort(.notFound, reason: "Could not find Amazon account in database.")
-                                }
-                                return acct
-                                }
-                    } catch {
-                        throw Abort(.notFound, reason: "Could not find Amazon account in database.")
-                    }
-                default:
-                    do {
-                        let profileRetrieveError = try res.content.syncDecode(LWACustomerProfileResponseError.self)
-                        throw Abort(.notFound, reason: "Couldn't retrieve Amazon account, error: \(profileRetrieveError.error), detail: \(profileRetrieveError.error_description)")
-                    } catch {
-                        throw Abort(.notFound, reason: "Failed to retrieve Amazon user id, error code: \(res.http.status.code)")
-                    }
-                }
-        }
-    }
+
 
     func getPlaceholderUserAccount (placeholderUserId: String, context req: Request) throws -> Future<User?> {
         guard let placeholderUuid = UUID.init(placeholderUserId) else { return Future.map(on: req) {nil} }

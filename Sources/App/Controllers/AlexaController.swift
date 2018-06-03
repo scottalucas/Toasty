@@ -15,11 +15,10 @@ struct AlexaController: RouteCollection {
             guard let userRequestToken = discoveryRequest.directive.payload.scope?.token else {
                 throw Abort(.notFound, reason: "Could not retrieve user ID from Amazon.")
             }
-            let associatedAmazonAccount:Future<AmazonAccount> = try LoginWithAmazonController().getAmazonAccount(usingToken: userRequestToken, on: req)
-                .map () { acct in
-                    logger.debug("Returned Amazon account: \(acct)")
-                    return acct
-            }
+            let associatedAmazonAccount:Future<AmazonAccount> = try User.getAmazonAccount(usingToken: userRequestToken, on: req)
+            
+            let associatedFireplaces:Future<[Fireplace]> = getAssociatedFireplaces(for: associatedAmazonAccount, on: req)
+            
             let msgJSON = req.http.body.debugDescription
             logger.debug("Request in discovery handler: \(req.debugDescription)")
             logger.debug("JSON in discovery hander: \(msgJSON)")
@@ -31,6 +30,17 @@ struct AlexaController: RouteCollection {
         alexaRoutes.post("Discovery", use: discoveryHandler)
         alexaRoutes.get("Discovery", use: discoveryHandler)
 
+    }
+    
+    //*******************************************************************************
+    //helper functions, not route responders
+    //*******************************************************************************
+
+    func getAssociatedFireplaces(for amazonAccount: Future<AmazonAccount>, on req: Request) -> Future<[Fireplace]> {
+        return amazonAccount
+            .flatMap (to: [Fireplace].self) { acct in
+                return try acct.fireplaces.query(on: req).all()
+            }
     }
     
 }

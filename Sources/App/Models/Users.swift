@@ -26,7 +26,6 @@ final class User: Codable {
         self.username = userName
         return
     }
-    
 }
 
 
@@ -40,6 +39,40 @@ extension User {
     }
     var fireplaces: Children<User, Fireplace> {
         return children(\.parentUserId)
+    }
+}
+
+extension User {
+    class func getAmazonAccount (usingToken token: String, on req: Request) throws -> Future<AmazonAccount> {
+        guard let client = try? req.make(Client.self) else { throw Abort(.failedDependency, reason: "Could not create client to get amazon account.")}
+        let headers = HTTPHeaders.init([("x-amz-access-token", token)])
+        return client.get(LWASites.users, headers: headers)
+            .flatMap(to: AmazonAccount.self) { res in
+                switch res.http.status.code {
+                case 200:
+                    do {
+                        return try res.content.decode(LWACustomerProfileResponse.self)
+                            .flatMap(to: AmazonAccount?.self) { scope in
+                                logger.info("Got Amazon id: \(scope.user_id)")
+                                return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
+                            } .map (to: AmazonAccount.self) { optAcct in
+                                guard let acct = optAcct else {
+                                    throw Abort(.notFound, reason: "Could not find Amazon account in database.")
+                                }
+                                return acct
+                        }
+                    } catch {
+                        throw Abort(.notFound, reason: "Could not find Amazon account in database.")
+                    }
+                default:
+                    do {
+                        let profileRetrieveError = try res.content.syncDecode(LWACustomerProfileResponseError.self)
+                        throw Abort(.notFound, reason: "Couldn't retrieve Amazon account, error: \(profileRetrieveError.error), detail: \(profileRetrieveError.error_description)")
+                    } catch {
+                        throw Abort(.notFound, reason: "Failed to retrieve Amazon user id, error code: \(res.http.status.code)")
+                    }
+                }
+        }
     }
 }
 
