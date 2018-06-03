@@ -44,34 +44,51 @@ extension AlexaFireplace {
     }
 }
 
-struct AlexaFireplaceForDiscovery: Codable { //use this to create the discovery response
+struct AlexaEnvironment: Codable {
+    static let basicInterface: String = "Alexa"
+    static let type:String = "AlexaInterface"
+    static let interfaceVersion: String = "3"
+    static let discoveryNamespace: String = "Alexa.Discovery"
+    static let discoveryResponseHeaderName: String = "Discover.Response"
+}
+
+// Discovery structs
+struct AlexaFireplaceEndpoint: Codable { //use this to create the discovery response
     var endpointId:AlexaFireplace.ID
     var manufacturerName:String = "Toasty Fireplace"
-//    var friendlyName:String
+    var friendlyName:String
     var description:String = "Smart home fireplace controller"
-    var displayCategories:[AlexaDisplayCategories] = [.SWITCH]
-    var cookie:[String:String] = [:]
-    var capabilities: [AlexaCapabilities] = [AlexaCapabilities.init(interface: "Alexa.PowerController", version: "3", supportedProps: [["name":"powerState"]], reported: false, retrievable: false)]
-    init? (from fireplace:AlexaFireplace) {
+    var displayCategories:[AlexaDisplayCategories] = [.OTHER]
+    var cookie:[String:String]? = [:]
+    var capabilities: [AlexaCapability] = [
+        AlexaCapability.init(interface: AlexaEnvironment.basicInterface, version: AlexaEnvironment.interfaceVersion, supportedProps: nil, reported: nil, retrievable: nil),
+        AlexaCapability.init(interface: "Alexa.PowerController", version: AlexaEnvironment.interfaceVersion, supportedProps: [["name":"powerState"]], reported: false, retrievable: false)]
+    init? (from fireplace:Fireplace) {
         guard let id = fireplace.id else {return nil}
         endpointId = id
+        friendlyName = fireplace.friendlyName
     }
 }
 
-final class AlexaCapabilities: Codable {
-    var type: String = "AlexaInterface"
-    var interface: String
-    var version: String
-    var properties: Properties
+final class AlexaCapability: Codable {
+    let type: String = AlexaEnvironment.type
+    let interface: String
+    let version: String = AlexaEnvironment.interfaceVersion
+    let properties: Properties?
     struct Properties: Codable {
-        var supported: [[String:String]]?
-        var proactivelyReported: Bool?
-        var retrievable: Bool?
+        let supported: [[String:String]]?
+        let proactivelyReported: Bool?
+        let retrievable: Bool?
+        init? (supported: [[String:String]]?, proactivelyReported: Bool?, retrievable: Bool?) {
+            if supported == nil && proactivelyReported == nil && retrievable == nil {return nil}
+            self.supported = supported
+            self.proactivelyReported = proactivelyReported
+            self.retrievable = retrievable
+        }
     }
     
-    init(interface: String, version: String, supportedProps:[[String:String]], reported: Bool, retrievable: Bool) {
+    init(interface: String, version: String, supportedProps:[[String:String]]?, reported: Bool?, retrievable: Bool?) {
         self.interface = interface
-        self.version = version
         properties = Properties(supported: supportedProps, proactivelyReported: reported, retrievable: retrievable)
     }
 }
@@ -80,14 +97,43 @@ enum AlexaDisplayCategories: String, Codable {
     case ACTIVITY_TRIGGER, CAMERA, DOOR, LIGHT, MICROWAVE, OTHER, SCENE_TRIGGER, SMARTLOCK, SMARTPLUG, SPEAKER, SWITCH, TEMPERATURE_SENSOR, THERMOSTAT, TV
 }
 
-struct AlexaMessage:Content {
-    let directive:AlexaDirective
+struct AlexaDiscoveryRequest: Codable {
+    let directive:Directive
+    struct Directive: Codable {
+        let header: AlexaHeader
+        let payload: AlexaPayload
+    }
 }
 
-struct AlexaDirective:Codable {
-    let header:AlexaHeader
-    let payload:AlexaPayload
-    let endpoint:AlexaEndpoint?
+struct AlexaDiscoveryResponse: Codable, Content {
+    let event:Event
+    
+    struct Event: Codable {
+        let header: AlexaHeader
+        let payload: Endpoints
+    }
+    
+    struct Endpoints: Codable {
+        var endpoints: [AlexaFireplaceEndpoint] = Array()
+        init? (using fireplaces: [Fireplace]) {
+            for fireplace in fireplaces {
+                guard let fp = AlexaFireplaceEndpoint(from: fireplace) else { return nil}
+                endpoints.append(fp)
+            }
+        }
+    }
+    
+    init? (msgId: String, sendBack fireplaces: [Fireplace]) {
+        guard let endPts = Endpoints(using: fireplaces) else {return nil}
+        let head = AlexaHeader(namespace: AlexaEnvironment.discoveryNamespace, name: AlexaEnvironment.discoveryResponseHeaderName, payloadVersion: AlexaEnvironment.interfaceVersion, messageId: msgId, correlationToken: nil)
+        event = Event(header: head, payload: endPts)
+    }
+    
+}
+
+// Event structs
+struct AlexaMessage:Content {
+    let directive:AlexaDirective
 }
 
 struct AlexaEvent:Codable {
@@ -96,6 +142,41 @@ struct AlexaEvent:Codable {
     let payload:AlexaPayload
 }
 
+struct AlexaDirective:Codable {
+    let header:AlexaHeader
+    let payload:AlexaPayload
+    let endpoint:AlexaEndpoint?
+}
+
+final class AlexaToastyPowerControllerInterfaceRequest: Codable {
+    var header:Header
+    var endpoint:InboundEndpoint
+    var payload: [String:String]?
+    
+    struct Header:Codable {
+        var namespace:String = "Alexa.PowerController"
+        var name: Name
+        var payloadVersion: String
+        var messageId: String
+        var correlationToken: String
+        enum Name: String, Codable {
+            case TurnOn = "TurnOn"
+            case TurnOff = "TurnOff"
+            func execute () {
+                switch self {
+                case .TurnOn:
+                    break
+                //insert turn on url here
+                case .TurnOff:
+                    break
+                    //insert turn off url here
+                }
+            }
+        }
+    }
+}
+
+// Common structs
 struct AlexaHeader:Codable {
     let namespace: String
     let name:String
@@ -137,48 +218,13 @@ struct AlexaTestMessage: Content {
     var testMessage: String
 }
 
-struct AlexaDiscoveryRequest: Codable {
-    let directive:Directive
-    struct Directive: Codable {
-        let header: AlexaHeader
-        let payload: AlexaPayload
-    }
-}
-
-final class AlexaToastyPowerControllerInterfaceRequest: Codable {
-    var header:Header
-    var endpoint:Endpoint
-    var payload: [String:String]?
-    
-    struct Header:Codable {
-        var namespace:String = "Alexa.PowerController"
-        var name: Name
-        var payloadVersion: String
-        var messageId: String
-        var correlationToken: String
-        enum Name: String, Codable {
-            case TurnOn = "TurnOn"
-            case TurnOff = "TurnOff"
-            func execute () {
-                switch self {
-                case .TurnOn:
-                    break
-                //insert turn on url here
-                case .TurnOff:
-                    break
-                    //insert turn off url here
-                }
-            }
-        }
-    }
-    struct Endpoint: Codable {
-        var scope: Scope
-        var endpointId: String
-        var cookie: [String:String]
-        struct Scope: Codable {
-            var type: String = "BearerToken"
-            var token: String
-        }
+struct InboundEndpoint: Codable {
+    let scope: Scope
+    let endpointId: String
+    let cookie: [String:String]
+    struct Scope: Codable {
+        let type: String = "BearerToken"
+        let token: String
     }
 }
 

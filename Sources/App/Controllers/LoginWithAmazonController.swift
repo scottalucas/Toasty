@@ -156,7 +156,6 @@ struct LoginWithAmazonController: RouteCollection {
             }
             
             let installMsg = installFireplaces(userAccount: userAcct, amazonAccount: amazonAcct, discoveredFps: discoveredFireplaces, context: req)
-            
             return flatMap(to: View.self, userAcct, amazonAcct, placeholderUserAccount, installMsg) {
                 uAcct, aAcct, dAcct, msg in
                 var deleteMessage:Future<String>
