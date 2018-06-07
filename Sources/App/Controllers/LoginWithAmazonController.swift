@@ -47,7 +47,7 @@ struct LoginWithAmazonController: RouteCollection {
         func loginHandler (_ req: Request) throws -> Future<View> {
             let logger = try req.make(Logger.self)
             logger.info("Login handler hit with \(req.debugDescription)")
-            let lwaInteractionMode = LWAInteractionMode(rawValue: (try? req.parameters.next(String.self)) ?? LWAInteractionMode.auto.rawValue)?.rawValue ?? "auto"
+            let lwaInteractionMode = LWAInteractionMode(rawValue: (try? req.parameters.next(String.self)) ?? LWAInteractionMode.auto.rawValue)?.rawValue ?? "auto" //interaction mode is whether or not the user is prompted for credentials or cached credentials are in use.
             var context = [String: String]()
             guard
                 let site = Environment.get(ENVVariables.siteUrl),
@@ -60,7 +60,8 @@ struct LoginWithAmazonController: RouteCollection {
                     context["MSG"] = "No fireplaces found or malformed JSON in request, please discover fireplaces first."
                     return try req.view().render("noFireplaces", context)
             }
-            return User(name: "Placeholder", username: "Placeholder") .save(on: req)
+            return User(name: "Placeholder", username: "Placeholder")
+                .save(on: req)
                 .flatMap(to: [Fireplace].self) { usr in
                     guard let usrId = usr.id else { throw Abort(.notFound, reason: "Failed to create placeholder user account")}
                     context["SITEURL"] = "\(site)\(ToastyAppRoutes.lwa.auth)"
@@ -189,7 +190,6 @@ struct LoginWithAmazonController: RouteCollection {
         loginWithAmazonRoutes.post("login", String.parameter, use: loginHandler)
         loginWithAmazonRoutes.post("login", use: loginHandler)
         loginWithAmazonRoutes.get("login", use: loginHandlerGet)
-        loginWithAmazonRoutes.post("login", String.parameter, use: loginHandler)
         loginWithAmazonRoutes.get("login", String.parameter, use: loginHandlerGet)
     }
     //*******************************************************************************

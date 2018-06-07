@@ -17,6 +17,10 @@ final class User: Codable {
         self.username = username
     }
     
+    init(userId: UUID) {
+        id = userId
+    }
+    
     func setName (_ name: String) {
         self.name = name
         return

@@ -46,10 +46,13 @@ extension AlexaFireplace {
 
 struct AlexaEnvironment: Codable {
     static let basicInterface: String = "Alexa"
-    static let type:String = "AlexaInterface"
+    static let capbilityType:String = "AlexaInterface"
     static let interfaceVersion: String = "3"
     static let discoveryNamespace: String = "Alexa.Discovery"
     static let discoveryResponseHeaderName: String = "Discover.Response"
+    enum SmartHomeInterface: String {
+        case discovery = "Alexa.Discovery", discoveryResponse = "Discover.Response", fireplace = "Alexa.PowerController", health = "Alexa.EndpointHealth"
+    }
 }
 
 // Discovery structs
@@ -71,7 +74,7 @@ struct AlexaFireplaceEndpoint: Codable { //use this to create the discovery resp
 }
 
 final class AlexaCapability: Codable {
-    let type: String = AlexaEnvironment.type
+    let type: String = AlexaEnvironment.capbilityType
     let interface: String
     let version: String = AlexaEnvironment.interfaceVersion
     let properties: Properties?
@@ -95,6 +98,28 @@ final class AlexaCapability: Codable {
 
 enum AlexaDisplayCategories: String, Codable {
     case ACTIVITY_TRIGGER, CAMERA, DOOR, LIGHT, MICROWAVE, OTHER, SCENE_TRIGGER, SMARTLOCK, SMARTPLUG, SPEAKER, SWITCH, TEMPERATURE_SENSOR, THERMOSTAT, TV
+}
+
+enum AlexaErrorValue: String {
+    case inOperation = "ALREADY_IN_OPERATION"
+    case bridgeUnreachable = "BRIDGE_UNREACHABLE"
+    case busy = "ENDPOINT_BUSY"
+    case lowPower = "ENDPOINT_LOW_POWER"
+    case endpointUnreachable = "ENDPOINT_UNREACHABLE"
+    case expiredCredentials = "EXPIRED_AUTHORIZATION_CREDENTIAL"
+    case fwOutOfDate = "FIRMWARE_OUT_OF_DATE"
+    case hwMalfunction = "HARDWARE_MALFUNCTION"
+    case internalError = "INTERNAL_ERROR"
+    case invalidCredential = "INVALID_AUTHORIZATION_CREDENTIAL"
+    case invalidDirective = "INVALID_DIRECTIVE"
+    case invalidValue = "INVALID_VALUE"
+    case noSuchEndpoint = "NO_SUCH_ENDPOINT"
+    case notSupported = "NOT_SUPPORTED_IN_CURRENT_MODE"
+    case notInOperation = "NOT_IN_OPERATION"
+    case powerLevelNotSupported = "POWER_LEVEL_NOT_SUPPORTED"
+    case rateLimitExceeded = "RATE_LIMIT_EXCEEDED"
+    case tempValueOutOfRange = "TEMPERATURE_VALUE_OUT_OF_RANGE"
+    case valueOutOfRange = "VALUE_OUT_OF_RANGE"
 }
 
 struct AlexaDiscoveryRequest: Codable {
@@ -131,15 +156,9 @@ struct AlexaDiscoveryResponse: Codable, Content {
     
 }
 
-// Event structs
+// Directive structs
 struct AlexaMessage:Content {
     let directive:AlexaDirective
-}
-
-struct AlexaEvent:Codable {
-    let header:AlexaHeader
-    let endpoint:AlexaEndpoint
-    let payload:AlexaPayload
 }
 
 struct AlexaDirective:Codable {
@@ -148,32 +167,16 @@ struct AlexaDirective:Codable {
     let endpoint:AlexaEndpoint?
 }
 
-final class AlexaToastyPowerControllerInterfaceRequest: Codable {
-    var header:Header
-    var endpoint:InboundEndpoint
-    var payload: [String:String]?
-    
-    struct Header:Codable {
-        var namespace:String = "Alexa.PowerController"
-        var name: Name
-        var payloadVersion: String
-        var messageId: String
-        var correlationToken: String
-        enum Name: String, Codable {
-            case TurnOn = "TurnOn"
-            case TurnOff = "TurnOff"
-            func execute () {
-                switch self {
-                case .TurnOn:
-                    break
-                //insert turn on url here
-                case .TurnOff:
-                    break
-                    //insert turn off url here
-                }
-            }
-        }
-    }
+//event response structures
+struct AlexaResponse: Codable, Content, ResponseEncodable {
+    let context: AlexaContext
+    let event: AlexaEvent
+}
+
+struct AlexaEvent:Codable {
+    let header:AlexaHeader
+    let endpoint:AlexaEndpoint
+    let payload:AlexaPayload
 }
 
 // Common structs
@@ -186,14 +189,53 @@ struct AlexaHeader:Codable {
 }
 
 struct AlexaPayload:Codable {
-    let scope:AlexaScope?
+    var scope:AlexaScope? = nil
+    var type:String? = nil
+    var message:String? = nil
+    
+    enum CodingKeys: String, CodingKey {
+        case scope, type, message
+    }
+    
+}
+
+extension AlexaPayload { //encoding strategy
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(scope, forKey: .scope)
+        try container.encodeIfPresent(type, forKey: .type)
+        try container.encodeIfPresent(message, forKey: .message)
+    }
+}
+
+extension AlexaPayload { //decoding strategy
+    init (from decoder: Decoder) throws {
+        let allValues = try decoder.container(keyedBy: CodingKeys.self)
+        scope = try allValues.decodeIfPresent(AlexaScope.self, forKey: .scope)
+        type = try allValues.decodeIfPresent(String.self, forKey: .type)
+        message = try allValues.decodeIfPresent(String.self, forKey: .message)
+    }
+}
+
+struct AlexaErrorPayload: Encodable {
+    var type: String
+    var message: String
+    
+    init (err: AlexaErrorValue, reason: String) {
+        type = err.rawValue
+        message = reason
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case type, message
+    }
 }
 
 struct AlexaScope:Codable {
-    let type:String?
-    let partition:String?
-    let userId:String?
     let token:String
+    let type:String? = nil
+    let partition:String? = nil
+    let userId:String? = nil
 }
 
 struct AlexaContext:Codable {
@@ -201,17 +243,100 @@ struct AlexaContext:Codable {
 }
 
 struct AlexaEndpoint:Codable {
-    let scope:AlexaScope
     let endpointId:String
-    let cookie: [String:String]
+    let scope:AlexaScope?
+    let cookie: [String:String]?
+    
+    init (using id: String, scope: AlexaScope? = nil, cookie: [String:String]? = nil) {
+        endpointId = id
+        self.scope = scope
+        self.cookie = cookie
+    }
 }
 
-struct AlexaProperty:Codable {
-    let namespace:String
-    let name:String
-    let value:String
-    let timeOfSample: String
-    let uncertaintyInMilliseconds:Int
+struct AlexaProperty: Codable {
+    private var namespaceType: Interface
+    var namespace:String {
+        return namespaceType.rawValue
+    }
+    var name:String
+    var value: String
+    var timeOfSample: String?
+    var uncertaintyInMilliseconds:Int?
+    
+    init (namespace: Interface, name: String, value: String, time: Date?, uncertainty: Int?) {
+        namespaceType = namespace
+        self.name = name
+        self.value = value
+        timeOfSample = time?.iso8601 ?? Date().iso8601
+        uncertaintyInMilliseconds = uncertainty ?? 200
+    }
+    
+    enum Interface: String {
+        case power = "Alexa.PowerController", health = "Alexa.EndpointHealth"
+        var encodeAsSecondary:Bool {
+            switch self {
+            case .power:
+                return false
+            case .health:
+                return true
+            }
+        }
+    }
+    enum CodingKeys: String, CodingKey {
+        case namespace
+        case name
+        case value
+    }
+    
+    enum ValueKeys: String, CodingKey {
+        case value
+    }
+}
+
+extension AlexaProperty { //encoding strategy
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(namespace, forKey: .namespace)
+        try container.encode(name, forKey: .name)
+        if namespaceType.encodeAsSecondary {
+            var secondaryValueInfo = container.nestedContainer(keyedBy: ValueKeys.self, forKey: .value)
+            try secondaryValueInfo.encode(value, forKey: .value)
+        } else {
+            try container.encode(value, forKey: .value)
+        }
+    }
+}
+
+extension AlexaProperty { //decoding strategy
+    init (from decoder: Decoder) throws {
+        let allValues = try decoder.container(keyedBy: CodingKeys.self)
+        let ns = try allValues.decode(String.self, forKey: .namespace)
+        guard let inType = Interface(rawValue: ns) else {
+            throw Abort(.notFound, reason: "Could not decode property, unknown interface type.")
+        }
+        namespaceType = inType
+        name = try allValues.decode(String.self, forKey: .name)
+        do {
+            value = try allValues.decode(String.self, forKey: .value)
+        } catch {
+            value = String(try allValues.decode(Int.self, forKey: .value))
+        }
+    }
+}
+
+//Error structs
+struct AlexaError: Codable, Content, ResponseEncodable {
+    var event: AlexaEvent
+    
+    init(msgId: String, corrToken: String, endpoint: String, errType: AlexaErrorValue, message: String) {
+        let header = AlexaHeader(namespace: AlexaEnvironment.basicInterface, name: "ErrorResponse", payloadVersion: AlexaEnvironment.interfaceVersion, messageId: msgId, correlationToken: corrToken)
+        let endpoint = AlexaEndpoint.init(using: endpoint)
+        var payload = AlexaPayload()
+            payload.type = errType.rawValue
+            payload.message = message
+        event = AlexaEvent(header: header, endpoint: endpoint, payload: payload)
+    }
 }
 
 struct AlexaTestMessage: Content {
@@ -228,3 +353,24 @@ struct InboundEndpoint: Codable {
     }
 }
 
+extension Formatter {
+    static let iso8601: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .iso8601)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSXXXXX"
+        return formatter
+    }()
+}
+extension Date {
+    var iso8601: String {
+        return Formatter.iso8601.string(from: self)
+    }
+}
+
+extension String {
+    var dateFromISO8601: Date? {
+        return Formatter.iso8601.date(from: self)   // "Mar 22, 2017, 10:22 AM"
+    }
+}

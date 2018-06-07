@@ -64,8 +64,8 @@ public func configure(
 //    migrations.add(model: SessionData.self, database: .psql)
     services.register(migrations)
     
-    let serverConfiure = NIOServerConfig.default(hostname: "192.168.1.111", port: 8080)
-    services.register(serverConfiure)
+    let serverConfigure = NIOServerConfig.default(hostname: "localhost", port: 8080)
+    services.register(serverConfigure)
 }
 
 struct ENVVariables {

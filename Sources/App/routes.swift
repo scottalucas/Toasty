@@ -13,10 +13,12 @@ public func routes(_ router: Router) throws {
     }
     let loginWithAmazonController = LoginWithAmazonController()
     let alexaController = AlexaController()
+    let testController = TestController()
     //    try router.register(collection: alexaController)
     //    try router.register(collection: usersController)
     try router.register(collection: loginWithAmazonController)
     try router.register(collection: alexaController)
+    try router.register(collection: testController)
 }
 
 struct ToastyAppRoutes {
@@ -28,5 +30,9 @@ struct ToastyAppRoutes {
     struct alexa {
         static let root = "/Alexa"
         static let discovery = "\(root)/Discovery"
+    }
+    struct test {
+        static let root = "/test"
+        static let reset = "\(root)/reset"
     }
 }
