@@ -54,6 +54,7 @@ struct TestController: RouteCollection {
                     try res.content.encode(fps, as: .json)
                     return res
                 }
+        }
         
         testRoutes.get(use: helloHandler)
         testRoutes.get("reset", use: resetHandler)

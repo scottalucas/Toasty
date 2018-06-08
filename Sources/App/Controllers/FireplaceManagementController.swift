@@ -12,26 +12,17 @@ import FluentPostgreSQL
 
 struct FireplaceManagementController {
     
-    static func action (_ action: ImpFireplaceDirective, executeOn url: String, on req: Request) -> Future<ImpStatus> {
-        guard let client = try? req.make(Client.self) else { return Future.map(on: req) {ImpStatus.NotAvailable} }
-        var request:HTTPRequest = HTTPRequest(method: .POST, url: url)
-        switch action {
-        case .TurnOn:
-            request.body = HTTPBody(data: action.json)
-            break
-        case .TurnOff:
-            request.body = HTTPBody(data: action.json)
-            break
-        }
-        let impRequest = Request(http: request, using: req)
-
-        return client.send(impRequest)
-            .flatMap (to: ImpStatus.self) { response in
-                do {
-                    return try response.content.decode(ImpStatus.self)
-                } catch {
-                    return Future.map(on: req) {ImpStatus.NotAvailable}
+    static func action (_ action: ImpFireplaceAction, executeOn url: String, on req: Request) -> Future<ImpFireplaceAck> {
+//        guard let client = try? req.make(Client.self) else { return Future.map(on: req) {ImpStatus.NotAvailable} }
+        do {
+            return try req.client().post(URL.init(string: url)!) { newPost in
+                newPost.http.headers.add(name: .contentType, value: "application/json")
+                try newPost.content.encode(action)
+                }.map (to: ImpFireplaceAck.self) { res in
+                    return try res.content.syncDecode(ImpFireplaceAck.self)
                 }
+        } catch {
+            return Future.map(on: req) {ImpFireplaceAck()}
         }
     }
     
