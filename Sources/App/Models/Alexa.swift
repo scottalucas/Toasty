@@ -100,27 +100,6 @@ enum AlexaDisplayCategories: String, Codable {
     case ACTIVITY_TRIGGER, CAMERA, DOOR, LIGHT, MICROWAVE, OTHER, SCENE_TRIGGER, SMARTLOCK, SMARTPLUG, SPEAKER, SWITCH, TEMPERATURE_SENSOR, THERMOSTAT, TV
 }
 
-enum AlexaErrorValue: String {
-    case inOperation = "ALREADY_IN_OPERATION"
-    case bridgeUnreachable = "BRIDGE_UNREACHABLE"
-    case busy = "ENDPOINT_BUSY"
-    case lowPower = "ENDPOINT_LOW_POWER"
-    case endpointUnreachable = "ENDPOINT_UNREACHABLE"
-    case expiredCredentials = "EXPIRED_AUTHORIZATION_CREDENTIAL"
-    case fwOutOfDate = "FIRMWARE_OUT_OF_DATE"
-    case hwMalfunction = "HARDWARE_MALFUNCTION"
-    case internalError = "INTERNAL_ERROR"
-    case invalidCredential = "INVALID_AUTHORIZATION_CREDENTIAL"
-    case invalidDirective = "INVALID_DIRECTIVE"
-    case invalidValue = "INVALID_VALUE"
-    case noSuchEndpoint = "NO_SUCH_ENDPOINT"
-    case notSupported = "NOT_SUPPORTED_IN_CURRENT_MODE"
-    case notInOperation = "NOT_IN_OPERATION"
-    case powerLevelNotSupported = "POWER_LEVEL_NOT_SUPPORTED"
-    case rateLimitExceeded = "RATE_LIMIT_EXCEEDED"
-    case tempValueOutOfRange = "TEMPERATURE_VALUE_OUT_OF_RANGE"
-    case valueOutOfRange = "VALUE_OUT_OF_RANGE"
-}
 
 struct AlexaDiscoveryRequest: Codable {
     let directive:Directive
@@ -140,18 +119,17 @@ struct AlexaDiscoveryResponse: Codable, Content {
     
     struct Endpoints: Codable {
         var endpoints: [AlexaFireplaceEndpoint] = Array()
-        init? (using fireplaces: [Fireplace]) {
+        init (using fireplaces: [Fireplace]) {
             for fireplace in fireplaces {
-                guard let fp = AlexaFireplaceEndpoint(from: fireplace) else { return nil}
+                guard let fp = AlexaFireplaceEndpoint(from: fireplace) else { continue }
                 endpoints.append(fp)
             }
         }
     }
     
-    init? (msgId: String, sendBack fireplaces: [Fireplace]) {
-        guard let endPts = Endpoints(using: fireplaces) else {return nil}
-        let head = AlexaHeader(namespace: AlexaEnvironment.discoveryNamespace, name: AlexaEnvironment.discoveryResponseHeaderName, payloadVersion: AlexaEnvironment.interfaceVersion, messageId: msgId, correlationToken: nil)
-        event = Event(header: head, payload: endPts)
+    init (msgId: String, corrToken: String, sendBack fireplaces: [Fireplace]) {
+        let head = AlexaHeader(namespace: AlexaEnvironment.discoveryNamespace, name: AlexaEnvironment.discoveryResponseHeaderName, payloadVersion: AlexaEnvironment.interfaceVersion, messageId: msgId, correlationToken: corrToken)
+        event = Event(header: head, payload: Endpoints(using: fireplaces))
     }
     
 }
@@ -170,6 +148,10 @@ struct AlexaDirective:Codable {
 //event response structures
 struct AlexaResponse: Codable, Content, ResponseEncodable {
     let context: AlexaContext
+    let event: AlexaEvent
+}
+
+struct AlexaTestErr: Codable, Content, ResponseEncodable {
     let event: AlexaEvent
 }
 
@@ -217,17 +199,11 @@ extension AlexaPayload { //decoding strategy
     }
 }
 
-struct AlexaErrorPayload: Encodable {
-    var type: String
-    var message: String
-    
+extension AlexaPayload { //initializer for Error payloads
     init (err: AlexaErrorValue, reason: String) {
         type = err.rawValue
         message = reason
-    }
-    
-    enum CodingKeys: String, CodingKey {
-        case type, message
+        scope = nil
     }
 }
 
@@ -251,6 +227,12 @@ struct AlexaEndpoint:Codable {
         endpointId = id
         self.scope = scope
         self.cookie = cookie
+    }
+    
+    init (useId id: String, accessToken token: String) {
+        endpointId = id
+        scope = AlexaScope(token: token)
+        cookie = nil
     }
 }
 
@@ -326,30 +308,90 @@ extension AlexaProperty { //decoding strategy
 }
 
 //Error structs
-struct AlexaError: Codable, Content, ResponseEncodable {
+
+
+enum AlexaErrorValue: String {
+    case inOperation = "ALREADY_IN_OPERATION"
+    case bridgeUnreachable = "BRIDGE_UNREACHABLE"
+    case busy = "ENDPOINT_BUSY"
+    case lowPower = "ENDPOINT_LOW_POWER"
+    case endpointUnreachable = "ENDPOINT_UNREACHABLE"
+    case expiredCredentials = "EXPIRED_AUTHORIZATION_CREDENTIAL"
+    case fwOutOfDate = "FIRMWARE_OUT_OF_DATE"
+    case hwMalfunction = "HARDWARE_MALFUNCTION"
+    case internalError = "INTERNAL_ERROR"
+    case invalidCredential = "INVALID_AUTHORIZATION_CREDENTIAL"
+    case invalidDirective = "INVALID_DIRECTIVE"
+    case invalidValue = "INVALID_VALUE"
+    case noSuchEndpoint = "NO_SUCH_ENDPOINT"
+    case notSupported = "NOT_SUPPORTED_IN_CURRENT_MODE"
+    case notInOperation = "NOT_IN_OPERATION"
+    case powerLevelNotSupported = "POWER_LEVEL_NOT_SUPPORTED"
+    case rateLimitExceeded = "RATE_LIMIT_EXCEEDED"
+    case tempValueOutOfRange = "TEMPERATURE_VALUE_OUT_OF_RANGE"
+    case valueOutOfRange = "VALUE_OUT_OF_RANGE"
+}
+
+struct AlexaErrorResponse: Codable, Content, ResponseEncodable {
     var event: AlexaEvent
+
+    init(msgId: String, corrToken cToken: String?, endpointId epId: String, accessToken aToken: String, errType eType: AlexaErrorValue, message msg: String) {
+//        let hdr = AlexaHeader(namespace: AlexaEnvironment.basicInterface, name: "ErrorResponse", payloadVersion: AlexaEnvironment.interfaceVersion, messageId: msgId, correlationToken: corrToken)
+//        let ep = AlexaEndpoint.init(using: endpoint, accessToken: token)
+//        let pl = AlexaPayload.init(err: errType, reason: message)
+        self.event = AlexaEvent(header: AlexaHeader(namespace: AlexaEnvironment.basicInterface, name: "ErrorResponse", payloadVersion: AlexaEnvironment.interfaceVersion, messageId: msgId, correlationToken: cToken), endpoint: AlexaEndpoint(useId: epId, accessToken: aToken), payload: AlexaPayload.init(err: eType, reason: msg))
+    }
     
-    init(msgId: String, corrToken: String, endpoint: String, errType: AlexaErrorValue, message: String) {
-        let header = AlexaHeader(namespace: AlexaEnvironment.basicInterface, name: "ErrorResponse", payloadVersion: AlexaEnvironment.interfaceVersion, messageId: msgId, correlationToken: corrToken)
-        let endpoint = AlexaEndpoint.init(using: endpoint)
-        var payload = AlexaPayload()
-            payload.type = errType.rawValue
-            payload.message = message
-        event = AlexaEvent(header: header, endpoint: endpoint, payload: payload)
+    init(event: AlexaEvent) {
+        self.event = event
     }
 }
 
-struct AlexaTestMessage: Content {
-    var testMessage: String
-}
+struct AlexaError: Error {
+    var id:Category
+    var file: String?
+    var function: String?
+    var line: Int?
+    
+    enum Category {
+        case couldNotDecodeDiscovery, couldNotRetrieveUserAccount, couldNotDecodePowerControllerDirective, failedToEncodeResponse, failedToLookupUser, noCorrespondingToastyAccount, childFireplacesNotFound, unknown
+    }
+    var description:String {
+        switch id {
+        case .couldNotDecodeDiscovery:
+            return "Could not decode Alexa discovery message."
+        case .couldNotRetrieveUserAccount:
+            return "Could not retrieve user account."
+        case .couldNotDecodePowerControllerDirective:
+            return "Could not decode instructions from Alexa."
+        case .failedToEncodeResponse:
+            return "Not able to send a return message to Alexa, decode failed."
+        case .failedToLookupUser:
+            return "Could not find a user associated with the endpoint sent by Alexa."
+        case .noCorrespondingToastyAccount:
+            return "Unable to find a related account on the Toasty cloud."
+        case .childFireplacesNotFound:
+            return "Did not find any fireplaces associated with the Amazon user."
+        case .unknown:
+            return "Unknown Alexa error."
+        }
+    }
 
-struct InboundEndpoint: Codable {
-    let scope: Scope
-    let endpointId: String
-    let cookie: [String:String]
-    struct Scope: Codable {
-        let type: String = "BearerToken"
-        let token: String
+    var context: [String:String] {
+        return [
+            "RETRYURL": ToastyAppRoutes.site + "/" + ToastyAppRoutes.lwa.login,
+            "ERROR" : description,
+            "ERRORURI" : "",
+            "ERRORFILE" : file ?? "not captured",
+            "ERRORFUNCTION" : function ?? "not captured",
+            "ERRORLINE" : line.debugDescription
+        ]
+    }
+    init(id: Category, file: String?, function: String?, line: Int?) {
+        self.id = id
+        self.file = file
+        self.function = function
+        self.line = line
     }
 }
 

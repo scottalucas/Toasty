@@ -55,12 +55,13 @@ final class AppTests: XCTestCase {
 //        print (json)
         let jsonData = json.data(using: .utf8)!
         let res = try app.client().post("http://192.168.1.111:8080/Alexa/PowerController") {newPost in
-            newPost.http.body = HTTPBody(data: jsonData)
-            newPost.http.headers.add(name: .contentType, value: "application/json")
+                newPost.http.body = HTTPBody(data: jsonData)
+                newPost.http.headers.add(name: .contentType, value: "application/json")
             }
             .wait()
-        print (res.http.debugDescription)
-        XCTAssert(true)
+        print (res.http.status)
+        print (res.http.body)
+        XCTAssert(res.http.status.code == 200)
     }
     
     static let allTests = [

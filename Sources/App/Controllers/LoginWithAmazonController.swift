@@ -14,7 +14,7 @@ struct LoginWithAmazonController: RouteCollection {
             let lwaInteractionMode = LWAInteractionMode(rawValue: (try? req.parameters.next(String.self)) ?? LWAInteractionMode.auto.rawValue)?.rawValue ?? "auto"
             return "Hello! You got LWA! With parameter \(lwaInteractionMode)"
         }
-
+        
         func loginHandlerGet (_ req: Request) throws -> Future<View> {
             let logger = try req.make(Logger.self)
             logger.info("Login test handler hit with \(req.debugDescription)")
@@ -23,11 +23,12 @@ struct LoginWithAmazonController: RouteCollection {
             guard
                 let site = Environment.get(ENVVariables.siteUrl),
                 let clientId = Environment.get(ENVVariables.lwaClientId)
-                else { throw Abort(.preconditionFailed, reason: "Server Error: Failed to retrieve correct ENV variables for LWA transaction.") }
-                let fireplaces = [Fireplace(power: .battery, imp: "testurl1", user: UUID.init(), friendly: "I'm a new fp"), Fireplace(power: .line, imp: "testurl2", user: UUID.init(), friendly: "I'm a new fp too!")]
+                else { throw LoginWithAmazonError(id: .serverError, file: #file, function: #function, line: #line) }
+            let fireplaces = [Fireplace(power: .battery, imp: "testurl1", user: UUID.init(), friendly: "I'm a new fp"), Fireplace(power: .line, imp: "testurl2", user: UUID.init(), friendly: "I'm a new fp too!")]
             return User(name: "Placeholder", username: "Placeholder") .save(on: req)
                 .flatMap(to: [Fireplace].self) { usr in
-                    guard let usrId = usr.id else { throw Abort(.notFound, reason: "Failed to create placeholder user account")}
+                    guard let usrId = usr.id else { throw LoginWithAmazonError(id: .couldNotInitializeAccount, file: #file, function: #function, line: #line)
+                    }
                     context["SITEURL"] = "\(site)\(ToastyAppRoutes.lwa.auth)"
                     context["PROFILE"] = LWATokenRequestConfig.profile
                     context["INTERACTIVE"] = lwaInteractionMode
@@ -52,30 +53,35 @@ struct LoginWithAmazonController: RouteCollection {
             guard
                 let site = Environment.get(ENVVariables.siteUrl),
                 let clientId = Environment.get(ENVVariables.lwaClientId)
-                else { throw Abort(.preconditionFailed, reason: "Server Error: Failed to retrieve correct ENV variables for LWA transaction.") }
+                else {
+                    throw LoginWithAmazonError(id: .serverMisconfigured, file: #file, function: #function, line: #line)
+            }
             guard
                 let fireplaces = try? req.content.syncDecode([Fireplace].self),
                 fireplaces.count > 0
                 else {
                     context["MSG"] = "No fireplaces found or malformed JSON in request, please discover fireplaces first."
-                    return try req.view().render("noFireplaces", context)
+                    return try req.view().render("lwsAmazonAuthFail", LoginWithAmazonError(id: .noAvailableFireplaces, file: #file, function: #function, line: #line).context)
             }
             return User(name: "Placeholder", username: "Placeholder")
                 .save(on: req)
                 .flatMap(to: [Fireplace].self) { usr in
-                    guard let usrId = usr.id else { throw Abort(.notFound, reason: "Failed to create placeholder user account")}
+                    var saveResults: [Future<Fireplace>] = []
+                    for fireplace in fireplaces {
+                        guard let usrId = usr.id else {break}
+                        saveResults.append(Fireplace.init(power: fireplace.powerSource, imp: fireplace.controlUrl, user: usrId, friendly: fireplace.friendlyName).save(on: req))
+                    }
+                    return saveResults.flatten(on: req)
+                }.flatMap (to: View.self) { fps in
+                    guard fps.count > 0 else {
+                        return try req.view().render("lwsAmazonAuthFail", LoginWithAmazonError(id: .couldNotInitializeAccount, file: #file, function: #function, line: #line).context)
+                    }
                     context["SITEURL"] = "\(site)\(ToastyAppRoutes.lwa.auth)"
                     context["PROFILE"] = LWATokenRequestConfig.profile
                     context["INTERACTIVE"] = lwaInteractionMode
                     context["RESPONSETYPE"] = LWATokenRequestConfig.responseType
-                    context["STATE"] = usrId.uuidString
+                    context["STATE"] = fps[0].parentUserId.uuidString
                     context["LWACLIENTID"] = clientId
-                    var saveResults: [Future<Fireplace>] = []
-                    for fireplace in fireplaces {
-                        saveResults.append(Fireplace.init(power: fireplace.powerSource, imp: fireplace.controlUrl, user: usrId, friendly: fireplace.friendlyName).save(on: req))
-                    }
-                    return saveResults.flatten(on: req)
-                } .flatMap (to: View.self) { fps in
                     return try req.view().render("AuthUserMgmt/lwaLogin", context)
             }
         }
@@ -87,18 +93,24 @@ struct LoginWithAmazonController: RouteCollection {
                 let authResp = try? req.query.decode(LWAAuthTokenResponse.self)
                 else {
                     //throw one of two errors. Note we don't have the state so we can't clean up the session database.
-                    if let errResp = try? req.query.decode(LWAAuthTokenResponseError.self) {
-                        throw Abort(.unauthorized, reason: errResp.error_description) }
-                    else { throw Abort(.notFound, reason: "Authentication failed with unknown error.")}
+                    do {
+                        let errResp = try req.query.decode(LWAAuthTokenResponseError.self)
+                        return try req.view().render("lwsAmazonAuthFail", LoginWithAmazonError(id: .failedToRetrieveAuthToken(errResp), file: #file, function: #function, line: #line).context)
+                    } catch {
+                        return try req.view().render("lwsAmazonAuthFail", LoginWithAmazonError(id: .lwaError, file: #file, function: #function, line: #line).context)
+                    }
             }
             guard
                 let site = Environment.get(ENVVariables.siteUrl),
                 let clientId = Environment.get(ENVVariables.lwaClientId),
                 let clientSecret = Environment.get(ENVVariables.lwaClientSecret)
                 else {
-                    throw Abort(.preconditionFailed, reason: "Server error: failed to create authentication environment.") }
+                    return try req.view().render("lwsAmazonAuthFail", LoginWithAmazonError(id: .serverMisconfigured, file: #file, function: #function, line: #line).context)
+            }
             
-            guard let client = try? req.make(Client.self) else { throw Abort(.failedDependency, reason: "Server error: could not create client to get amazon account.")}
+            guard let client = try? req.make(Client.self) else {
+                return try req.view().render("lwsAmazonAuthFail", LoginWithAmazonError(id: .serverError, file: #file, function: #function, line: #line).context)
+            }
             
             let authRequest = LWAAccessTokenRequest.init(
                 codeIn: authResp.accessCode,
@@ -106,38 +118,37 @@ struct LoginWithAmazonController: RouteCollection {
                 clientId: clientId,
                 clientSecret: clientSecret)
             
-            guard let lwaAccessTokenGrant:Future<LWAAccessTokenGrant> = try? getLwaAccessTokenGrant(using: authRequest, with: client) else {
-                throw Abort(.notFound, reason: "Could not get access token grant.")}
+            let lwaAccessTokenGrant:Future<LWAAccessTokenGrant> = try getLwaAccessTokenGrant(using: authRequest, with: client)
             
-            guard let placeholderUserAccount:Future<User?> = try? getPlaceholderUserAccount(placeholderUserId: authResp.placeholderUserId, context: req) else {
-                    throw Abort(.notFound, reason: "Please try again.") //should toss this back to the app and restart the process if possible.
-                    }
+            let amazonUserScope:Future<LWACustomerProfileResponse> = try getAmazonScope(using: lwaAccessTokenGrant, on: req)
+
+            let placeholderUserAccount:Future<User?> = try getPlaceholderUserAccount(placeholderUserId: authResp.placeholderUserId, context: req)
             
             let discoveredFireplaces:Future<[Fireplace]> = try getSessionFireplaces(using: placeholderUserAccount, on: req)
             
-            let amazonUserScope:Future<LWACustomerProfileResponse> = try getAmazonScope(using: lwaAccessTokenGrant, on: req)
-            
             let userAcct:Future<User> = flatMap(to: User.self, amazonUserScope, placeholderUserAccount) { scope, placeholderUser in
-                do {
                     return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
                         .flatMap (to: User.self) { optAzAcct in
                             if let azAcct = optAzAcct {
                                 return try azAcct.user.get(on: req)
-                            } else if let placeholderUsr = placeholderUser {
-                                placeholderUsr.setName("Anonymous")
-                                placeholderUsr.setUsername("Anonymous")
-                                return placeholderUsr.save(on: req)
                             } else {
-                                return User.init(name: "Anonymous", username: "Anonymous").save(on: req)
+                                guard
+                                    let pUser = placeholderUser
+                                    else {throw LoginWithAmazonError(id: .couldNotInitializeAccount, file: #file, function: #function, line: #line)
+                                }
+                                pUser.setName("Anonymous")
+                                pUser.setUsername("Anonymous")
+                                return pUser.save(on: req)
                             }
-                    }
-                } catch {
+                        }.catchFlatMap { err in
+                            return User.init(name: "Anonymous", username: "Anonymous").save(on: req)
+                        }
+                }.catchFlatMap { err in
                     return User.init(name: "Anonymous", username: "Anonymous").save(on: req)
-                }
             }
             
             let amazonAcct:Future<AmazonAccount> = flatMap(to: AmazonAccount.self, amazonUserScope, userAcct) { scope, usrAcct in
-                guard usrAcct.id != nil else { throw Abort(.notFound, reason: "Could not create Amazon account, malformed user account.")}
+                guard usrAcct.id != nil else { throw LoginWithAmazonError(id: .couldNotInitializeAccount, file: #file, function: #function, line: #line)}
                 do {
                     return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
                         .flatMap(to: AmazonAccount.self) { optAzAcct in
@@ -154,9 +165,12 @@ struct LoginWithAmazonController: RouteCollection {
                 } catch {
                     return AmazonAccount.init(with: scope, user: usrAcct)!.save(on: req)
                 }
+                }.catchFlatMap { err in
+                    throw LoginWithAmazonError(id: .couldNotCreateAccount, file: #file, function: #function, line: #line)
             }
             
-            let installMsg = installFireplaces(userAccount: userAcct, amazonAccount: amazonAcct, discoveredFps: discoveredFireplaces, context: req)
+            let installMsg = try installFireplaces(userAccount: userAcct, amazonAccount: amazonAcct, discoveredFps: discoveredFireplaces, context: req)
+            
             return flatMap(to: View.self, userAcct, amazonAcct, placeholderUserAccount, installMsg) {
                 uAcct, aAcct, dAcct, msg in
                 var deleteMessage:Future<String>
@@ -170,6 +184,12 @@ struct LoginWithAmazonController: RouteCollection {
                     context["MSG"] = "Created user account ID: \(String(describing: uAcct.id)) Amazon account ID: \(String(describing: aAcct.amazonUserId))\n\n\(msg)\n\n\(dMsg)"
                     return try req.view().render("AuthUserMgmt/lwaAmazonAuthSuccess", context)
                 }
+                }.catchFlatMap {err in
+                    if let lwaError = err as? LoginWithAmazonError {
+                        return try req.view().render("AuthUserMgmt/lwaAmazonAuthFail", lwaError.context)
+                    } else {
+                        return try req.view().render("AuthUserMgmt/lwaAmazonAuthFail", LoginWithAmazonError(id: .unknown, file: #file, function: #function, line: #line).context)
+                    }
             }
         }
         
@@ -192,10 +212,11 @@ struct LoginWithAmazonController: RouteCollection {
         loginWithAmazonRoutes.get("login", use: loginHandlerGet)
         loginWithAmazonRoutes.get("login", String.parameter, use: loginHandlerGet)
     }
+    
     //*******************************************************************************
     //help functions, not route responders
     //*******************************************************************************
-
+    
     func getLwaAccessTokenGrant (using lwaAccessReq:LWAAccessTokenRequest, with client: Client) throws -> Future<LWAAccessTokenGrant> {
         return client.post(LWASites.tokens, beforeSend: { newPost in
             logger.info("Asking for token from: \(LWASites.tokens)")
@@ -204,7 +225,7 @@ struct LoginWithAmazonController: RouteCollection {
                 logger.info("Sending token request: \(newPost.debugDescription)")
             } catch {
                 logger.info("Token request failed: \(newPost.debugDescription)")
-                throw Abort(.badRequest, reason: "Could not encode authorization request.")
+                throw LoginWithAmazonError(id: .couldNotCreateAccount, file: #file, function: #function, line: #line)
             }
         })
             .map (to: LWAAccessTokenGrant.self) { res in
@@ -214,9 +235,9 @@ struct LoginWithAmazonController: RouteCollection {
                 catch {
                     logger.info("Access token grant failed.")
                     if let err = try? res.content.syncDecode(LWAAccessTokenGrantError.self) {
-                        throw Abort(.unauthorized, reason: err.error_description) }
-                    else {
-                        throw Abort(.notFound, reason: "Unknown error")
+                        throw LoginWithAmazonError(id: .failedToRetrieveAccessToken(err), file: #file, function: #function, line: #line)
+                    } else {
+                        throw LoginWithAmazonError(id: .lwaError, file: #file, function: #function, line: #line)
                     }
                 }
         }
@@ -224,16 +245,21 @@ struct LoginWithAmazonController: RouteCollection {
     
     func getSessionFireplaces (using placeholderAcct: Future<User?>, on req: Request) throws -> Future<[Fireplace]> {
         return placeholderAcct.flatMap (to: [Fireplace].self) { optAcct in
-            guard let
-                acct = optAcct
-                else { throw Abort(.notFound, reason: "No fireplaces found, please try again after discovering fireplaces.")
+            guard let acct = optAcct else {
+                throw LoginWithAmazonError(id: .noAvailableFireplaces, file: #file, function: #function, line: #line)
             }
-            return try acct.fireplaces.query(on: req).all()
+            do {
+                return try acct.fireplaces.query(on: req).all()
+            } catch {
+                throw LoginWithAmazonError(id: .noAvailableFireplaces, file: #file, function: #function, line: #line)
+            }
         }
     }
     
     func getAmazonScope (using accessCode: Future<LWAAccessTokenGrant>, on req: Request) throws -> Future<LWACustomerProfileResponse> {
-        guard let client = try? req.make(Client.self) else { throw Abort(.failedDependency, reason: "Could not create client to get amazon account.")}
+        guard let client = try? req.make(Client.self) else {
+            throw LoginWithAmazonError(id: .serverError, file: #file, function: #function, line: #line)
+        }
         return accessCode
             .flatMap(to: Response.self) { code in
                 let headers = HTTPHeaders.init([("x-amz-access-token", code.access_token)])
@@ -243,20 +269,31 @@ struct LoginWithAmazonController: RouteCollection {
             .map(to: LWACustomerProfileResponse.self) { res in
                 logger.info("Got user scope from: \(res.debugDescription)")
                 guard res.http.status.code == 200 else {
-                    throw Abort(.notFound, reason: LWAUserScopeError(rawValue: res.http.status.reasonPhrase)?.desc() ?? "Unknown transaction message.")
+                    do {
+                        var err = try res.content.syncDecode(LWAUserScopeError.self)
+                        try err.setMessage(message: res.http.status.reasonPhrase) //need to see if this is the right token
+                        throw LoginWithAmazonError(id: .failedToRetrieveUserScope(err), file: #file, function: #function, line: #line)
+                    } catch {
+                        throw LoginWithAmazonError(id: .lwaError, file: #file, function: #function, line: #line)
+                    }
                 }
-                guard let scope = try? res.content.syncDecode(LWACustomerProfileResponse.self) else {throw Abort(.notFound, reason: "Could not decode user scope from Amazon.")}
-                return scope
+                do {
+                    return try res.content.syncDecode(LWACustomerProfileResponse.self)
+                } catch {
+                    throw LoginWithAmazonError(id: .couldNotDecode, file: #file, function: #function, line: #line)
+                }
         }
     }
-
-
+    
+    
     func getPlaceholderUserAccount (placeholderUserId: String, context req: Request) throws -> Future<User?> {
-        guard let placeholderUuid = UUID.init(placeholderUserId) else { return Future.map(on: req) {nil} }
+        guard let placeholderUuid = UUID.init(placeholderUserId) else {
+            throw LoginWithAmazonError(id: .couldNotInitializeAccount, file: #file, function: #function, line: #line)
+        }
         do {
             return try User.query(on: req).filter(\.id == placeholderUuid).first()
         } catch {
-            throw Abort(.notFound, reason: "Could not retrieve placeholder account, try using always for LWA interation mode.")
+            throw LoginWithAmazonError(id: .couldNotInitializeAccount, file: #file, function: #function, line: #line)
         }
     }
     
@@ -281,9 +318,11 @@ struct LoginWithAmazonController: RouteCollection {
         }
     }
     
-    func installFireplaces(userAccount: Future<User>, amazonAccount: Future<AmazonAccount>, discoveredFps: Future<[Fireplace]>, context req: Request) -> Future<String> {
+    func installFireplaces(userAccount: Future<User>, amazonAccount: Future<AmazonAccount>, discoveredFps: Future<[Fireplace]>, context req: Request) throws -> Future<String> {
         return flatMap(to: String.self, userAccount, amazonAccount, discoveredFps) { usrAcct, azAcct, candidateFps in
-            guard usrAcct.id != nil, azAcct.id != nil else {throw Abort(.notFound, reason: "Malformed user or Amazon account object during fireplace installation.")}
+            guard usrAcct.id != nil, azAcct.id != nil else {throw
+                LoginWithAmazonError(id: .couldNotCreateFireplaces, file: #file, function: #function, line: #line)
+            }
             var savedAzFpTracker:[Future<AlexaFireplace>] = Array ()
             var updatedFpTracker:[Future<Fireplace>] = Array ()
             for candidateFp in candidateFps {
@@ -298,7 +337,7 @@ struct LoginWithAmazonController: RouteCollection {
                             candidateFp.parentUserId = usrAcct.id!
                             return candidateFp.update(on: req)
                         }
-                    }
+                }
                 
                 let finalAzFp:Future<AlexaFireplace> =
                     finalFp.flatMap(to: AlexaFireplace.self) { newFp in
@@ -309,7 +348,7 @@ struct LoginWithAmazonController: RouteCollection {
                                 newAzFp.status = (newFp.powerSource == .battery) ? .notRegisterable : .availableForRegistration
                                 return newAzFp.save(on: req)
                         }
-                    }
+                }
                 
                 savedAzFpTracker.append(finalAzFp)
                 updatedFpTracker.append(finalFp)
@@ -318,6 +357,19 @@ struct LoginWithAmazonController: RouteCollection {
                 let ret = "Updated \(savedAzFps.count) Alexa records and \(savedFps.count) fireplace records."
                 return Future.map(on: req) {ret}
             }
+            }.catchFlatMap { err in
+                throw LoginWithAmazonError(id: .couldNotCreateFireplaces, file: #file, function: #function, line: #line)
         }
     }
 }
+
+
+
+
+
+
+
+
+
+
+

@@ -49,7 +49,7 @@ extension User {
 extension User {
     class func getAmazonAccount (usingToken token: String, on req: Request) throws -> Future<AmazonAccount> {
         guard let client = try? req.make(Client.self) else { throw Abort(.failedDependency, reason: "Could not create client to get amazon account.")}
-        if token == "access-token-from-skill" {
+        if token == "access-token-from-skill" { //for testing on
             return AmazonAccount.query(on: req).first()
                 .map (to: AmazonAccount.self) { optAcct in
                     guard let acct = optAcct else {

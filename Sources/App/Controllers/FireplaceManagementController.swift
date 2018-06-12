@@ -13,15 +13,32 @@ import FluentPostgreSQL
 struct FireplaceManagementController {
     
     static func action (_ action: ImpFireplaceAction, executeOn url: String, on req: Request) -> Future<ImpFireplaceAck> {
-//        guard let client = try? req.make(Client.self) else { return Future.map(on: req) {ImpStatus.NotAvailable} }
+//        guard let client = try? req.make(Client.self) else { return Future.map(on: req) {alexaResponseStatus.NotAvailable} }
         do {
-            return try req.client().post(URL.init(string: url)!) { newPost in
+            guard let postUrl = URL.init(string: url)
+                else {
+                    throw ImpError(id: .badUrl, file: #file, function: #function, line: #line)
+            }
+            return try req.client().post(postUrl) { newPost in
                 newPost.http.headers.add(name: .contentType, value: "application/json")
-                try newPost.content.encode(action)
-                }.map (to: ImpFireplaceAck.self) { res in
-                    return try res.content.syncDecode(ImpFireplaceAck.self)
+                do {
+                    try newPost.content.encode(action)
+                } catch {
+                    throw ImpError(id: .couldNotEncodeImpAction, file: #file, function: #function, line: #line)
                 }
+                }.map (to: ImpFireplaceAck.self) { res in
+                    do {
+                        return try res.content.syncDecode(ImpFireplaceAck.self)
+                    } catch {
+                        throw ImpError(id: .couldNotDecodeImpResponse, file: #file, function: #function, line: #line)
+                    }
+            }
         } catch {
+            if let err = error as? ImpError {
+                logger.error("\(err.description)\n\tfile: \(err.file ?? "not provided.")\n\tfunction: \(err.function ?? "not provided.")\n\tline: \(err.line.debugDescription)")
+            } else {
+                logger.error("Unspecified error in file \(#file), at function \(#function), on line \(String(#line))")
+            }
             return Future.map(on: req) {ImpFireplaceAck()}
         }
     }

@@ -1,0 +1,13 @@
+<html>
+<body>
+#embed("header")
+Error: #(ERROR)
+Error URI: #(ERRORURI)
+File: #(ERRORFILE)
+Function: #(ERRORFUNCTION)
+Line: #(ERRORLINE)
+
+<link href = "#(RETRYURL)">"Try again?</link>
+#embed("footer")
+</body>
+</html>
