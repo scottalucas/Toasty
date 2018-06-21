@@ -4,3 +4,7 @@ xcuserdata
 *.xcodeproj
 DerivedData/
 .DS_Store
+JS/index*
+JS/package*
+JS/webpack*
+JS/node_modules

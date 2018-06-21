@@ -66,11 +66,11 @@
       },
       {
         "package": "JSONSchema",
-        "repositoryURL": "https://github.com/kylef-archive/JSONSchema.swift",
+        "repositoryURL": "/Users/scott/Dropbox/Personal/Mad-Scientist/server/Toasty/JSONValidator",
         "state": {
           "branch": null,
-          "revision": "a5a9577364c41e040b4792dcd03305c60d4c48ad",
-          "version": "0.3.0"
+          "revision": "5dce95e48e8aa80ae03264171ca415ef7c61eff0",
+          "version": "1.0.0"
         }
       },
       {

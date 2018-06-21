@@ -15,36 +15,6 @@ struct LoginWithAmazonController: RouteCollection {
             return "Hello! You got LWA! With parameter \(lwaInteractionMode)"
         }
         
-        func loginHandlerGet (_ req: Request) throws -> Future<View> {
-            let logger = try req.make(Logger.self)
-            logger.info("Login test handler hit with \(req.debugDescription)")
-            let lwaInteractionMode = LWAInteractionMode(rawValue: (try? req.parameters.next(String.self)) ?? LWAInteractionMode.auto.rawValue)?.rawValue ?? "auto"
-            var context = [String: String]()
-            guard
-                let site = Environment.get(ENVVariables.siteUrl),
-                let clientId = Environment.get(ENVVariables.lwaClientId)
-                else { throw LoginWithAmazonError(id: .serverError, file: #file, function: #function, line: #line) }
-            let fireplaces = [Fireplace(power: .battery, imp: "testurl1", user: UUID.init(), friendly: "I'm a new fp"), Fireplace(power: .line, imp: "testurl2", user: UUID.init(), friendly: "I'm a new fp too!")]
-            return User(name: "Placeholder", username: "Placeholder") .save(on: req)
-                .flatMap(to: [Fireplace].self) { usr in
-                    guard let usrId = usr.id else { throw LoginWithAmazonError(id: .couldNotInitializeAccount, file: #file, function: #function, line: #line)
-                    }
-                    context["SITEURL"] = "\(site)\(ToastyAppRoutes.lwa.auth)"
-                    context["PROFILE"] = LWATokenRequestConfig.profile
-                    context["INTERACTIVE"] = lwaInteractionMode
-                    context["RESPONSETYPE"] = LWATokenRequestConfig.responseType
-                    context["STATE"] = usrId.uuidString
-                    context["LWACLIENTID"] = clientId
-                    var saveResults: [Future<Fireplace>] = []
-                    for fireplace in fireplaces {
-                        saveResults.append(Fireplace.init(power: fireplace.powerSource, imp: fireplace.controlUrl, user: usrId, friendly: fireplace.friendlyName).save(on: req))
-                    }
-                    return saveResults.flatten(on: req)
-                } .flatMap (to: View.self) { fps in
-                    return try req.view().render("AuthUserMgmt/lwaLogin", context)
-            }
-        }
-        
         func loginHandler (_ req: Request) throws -> Future<View> {
             let logger = try req.make(Logger.self)
             logger.info("Login handler hit with \(req.debugDescription)")
@@ -54,14 +24,14 @@ struct LoginWithAmazonController: RouteCollection {
                 let site = Environment.get(ENVVariables.siteUrl),
                 let clientId = Environment.get(ENVVariables.lwaClientId)
                 else {
-                    throw LoginWithAmazonError(id: .serverMisconfigured, file: #file, function: #function, line: #line)
+                    throw LoginWithAmazonError(.serverMisconfigured, file: #file, function: #function, line: #line)
             }
             guard
                 let fireplaces = try? req.content.syncDecode([Fireplace].self),
                 fireplaces.count > 0
                 else {
                     context["MSG"] = "No fireplaces found or malformed JSON in request, please discover fireplaces first."
-                    return try req.view().render("lwsAmazonAuthFail", LoginWithAmazonError(id: .noAvailableFireplaces, file: #file, function: #function, line: #line).context)
+                    return try req.view().render("lwsAmazonAuthFail", LoginWithAmazonError(.noAvailableFireplaces, file: #file, function: #function, line: #line).context)
             }
             return User(name: "Placeholder", username: "Placeholder")
                 .save(on: req)
@@ -74,7 +44,7 @@ struct LoginWithAmazonController: RouteCollection {
                     return saveResults.flatten(on: req)
                 }.flatMap (to: View.self) { fps in
                     guard fps.count > 0 else {
-                        return try req.view().render("lwsAmazonAuthFail", LoginWithAmazonError(id: .couldNotInitializeAccount, file: #file, function: #function, line: #line).context)
+                        return try req.view().render("lwsAmazonAuthFail", LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line).context)
                     }
                     context["SITEURL"] = "\(site)\(ToastyAppRoutes.lwa.auth)"
                     context["PROFILE"] = LWATokenRequestConfig.profile
@@ -95,9 +65,9 @@ struct LoginWithAmazonController: RouteCollection {
                     //throw one of two errors. Note we don't have the state so we can't clean up the session database.
                     do {
                         let errResp = try req.query.decode(LWAAuthTokenResponseError.self)
-                        return try req.view().render("lwsAmazonAuthFail", LoginWithAmazonError(id: .failedToRetrieveAuthToken(errResp), file: #file, function: #function, line: #line).context)
+                        return try req.view().render("lwsAmazonAuthFail", LoginWithAmazonError(.failedToRetrieveAuthToken(errResp), file: #file, function: #function, line: #line).context)
                     } catch {
-                        return try req.view().render("lwsAmazonAuthFail", LoginWithAmazonError(id: .lwaError, file: #file, function: #function, line: #line).context)
+                        return try req.view().render("lwsAmazonAuthFail", LoginWithAmazonError(.lwaError, file: #file, function: #function, line: #line).context)
                     }
             }
             guard
@@ -105,11 +75,11 @@ struct LoginWithAmazonController: RouteCollection {
                 let clientId = Environment.get(ENVVariables.lwaClientId),
                 let clientSecret = Environment.get(ENVVariables.lwaClientSecret)
                 else {
-                    return try req.view().render("lwsAmazonAuthFail", LoginWithAmazonError(id: .serverMisconfigured, file: #file, function: #function, line: #line).context)
+                    return try req.view().render("lwsAmazonAuthFail", LoginWithAmazonError(.serverMisconfigured, file: #file, function: #function, line: #line).context)
             }
             
             guard let client = try? req.make(Client.self) else {
-                return try req.view().render("lwsAmazonAuthFail", LoginWithAmazonError(id: .serverError, file: #file, function: #function, line: #line).context)
+                return try req.view().render("lwsAmazonAuthFail", LoginWithAmazonError(.serverError, file: #file, function: #function, line: #line).context)
             }
             
             let authRequest = LWAAccessTokenRequest.init(
@@ -134,7 +104,7 @@ struct LoginWithAmazonController: RouteCollection {
                             } else {
                                 guard
                                     let pUser = placeholderUser
-                                    else {throw LoginWithAmazonError(id: .couldNotInitializeAccount, file: #file, function: #function, line: #line)
+                                    else {throw LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line)
                                 }
                                 pUser.setName("Anonymous")
                                 pUser.setUsername("Anonymous")
@@ -148,7 +118,7 @@ struct LoginWithAmazonController: RouteCollection {
             }
             
             let amazonAcct:Future<AmazonAccount> = flatMap(to: AmazonAccount.self, amazonUserScope, userAcct) { scope, usrAcct in
-                guard usrAcct.id != nil else { throw LoginWithAmazonError(id: .couldNotInitializeAccount, file: #file, function: #function, line: #line)}
+                guard usrAcct.id != nil else { throw LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line)}
                 do {
                     return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
                         .flatMap(to: AmazonAccount.self) { optAzAcct in
@@ -166,7 +136,7 @@ struct LoginWithAmazonController: RouteCollection {
                     return AmazonAccount.init(with: scope, user: usrAcct)!.save(on: req)
                 }
                 }.catchFlatMap { err in
-                    throw LoginWithAmazonError(id: .couldNotCreateAccount, file: #file, function: #function, line: #line)
+                    throw LoginWithAmazonError(.couldNotCreateAccount, file: #file, function: #function, line: #line)
             }
             
             let installMsg = try installFireplaces(userAccount: userAcct, amazonAccount: amazonAcct, discoveredFps: discoveredFireplaces, context: req)
@@ -188,7 +158,7 @@ struct LoginWithAmazonController: RouteCollection {
                     if let lwaError = err as? LoginWithAmazonError {
                         return try req.view().render("AuthUserMgmt/lwaAmazonAuthFail", lwaError.context)
                     } else {
-                        return try req.view().render("AuthUserMgmt/lwaAmazonAuthFail", LoginWithAmazonError(id: .unknown, file: #file, function: #function, line: #line).context)
+                        return try req.view().render("AuthUserMgmt/lwaAmazonAuthFail", LoginWithAmazonError(.unknown, file: #file, function: #function, line: #line).context)
                     }
             }
         }
@@ -209,8 +179,6 @@ struct LoginWithAmazonController: RouteCollection {
         loginWithAmazonRoutes.post("access", use: accessHandler)
         loginWithAmazonRoutes.post("login", String.parameter, use: loginHandler)
         loginWithAmazonRoutes.post("login", use: loginHandler)
-        loginWithAmazonRoutes.get("login", use: loginHandlerGet)
-        loginWithAmazonRoutes.get("login", String.parameter, use: loginHandlerGet)
     }
     
     //*******************************************************************************
@@ -225,7 +193,7 @@ struct LoginWithAmazonController: RouteCollection {
                 logger.info("Sending token request: \(newPost.debugDescription)")
             } catch {
                 logger.info("Token request failed: \(newPost.debugDescription)")
-                throw LoginWithAmazonError(id: .couldNotCreateAccount, file: #file, function: #function, line: #line)
+                throw LoginWithAmazonError(.couldNotCreateAccount, file: #file, function: #function, line: #line)
             }
         })
             .map (to: LWAAccessTokenGrant.self) { res in
@@ -235,9 +203,9 @@ struct LoginWithAmazonController: RouteCollection {
                 catch {
                     logger.info("Access token grant failed.")
                     if let err = try? res.content.syncDecode(LWAAccessTokenGrantError.self) {
-                        throw LoginWithAmazonError(id: .failedToRetrieveAccessToken(err), file: #file, function: #function, line: #line)
+                        throw LoginWithAmazonError(.failedToRetrieveAccessToken(err), file: #file, function: #function, line: #line)
                     } else {
-                        throw LoginWithAmazonError(id: .lwaError, file: #file, function: #function, line: #line)
+                        throw LoginWithAmazonError(.lwaError, file: #file, function: #function, line: #line)
                     }
                 }
         }
@@ -246,19 +214,19 @@ struct LoginWithAmazonController: RouteCollection {
     func getSessionFireplaces (using placeholderAcct: Future<User?>, on req: Request) throws -> Future<[Fireplace]> {
         return placeholderAcct.flatMap (to: [Fireplace].self) { optAcct in
             guard let acct = optAcct else {
-                throw LoginWithAmazonError(id: .noAvailableFireplaces, file: #file, function: #function, line: #line)
+                throw LoginWithAmazonError(.noAvailableFireplaces, file: #file, function: #function, line: #line)
             }
             do {
                 return try acct.fireplaces.query(on: req).all()
             } catch {
-                throw LoginWithAmazonError(id: .noAvailableFireplaces, file: #file, function: #function, line: #line)
+                throw LoginWithAmazonError(.noAvailableFireplaces, file: #file, function: #function, line: #line)
             }
         }
     }
     
     func getAmazonScope (using accessCode: Future<LWAAccessTokenGrant>, on req: Request) throws -> Future<LWACustomerProfileResponse> {
         guard let client = try? req.make(Client.self) else {
-            throw LoginWithAmazonError(id: .serverError, file: #file, function: #function, line: #line)
+            throw LoginWithAmazonError(.serverError, file: #file, function: #function, line: #line)
         }
         return accessCode
             .flatMap(to: Response.self) { code in
@@ -272,15 +240,15 @@ struct LoginWithAmazonController: RouteCollection {
                     do {
                         var err = try res.content.syncDecode(LWAUserScopeError.self)
                         try err.setMessage(message: res.http.status.reasonPhrase) //need to see if this is the right token
-                        throw LoginWithAmazonError(id: .failedToRetrieveUserScope(err), file: #file, function: #function, line: #line)
+                        throw LoginWithAmazonError(.failedToRetrieveUserScope(err), file: #file, function: #function, line: #line)
                     } catch {
-                        throw LoginWithAmazonError(id: .lwaError, file: #file, function: #function, line: #line)
+                        throw LoginWithAmazonError(.lwaError, file: #file, function: #function, line: #line)
                     }
                 }
                 do {
                     return try res.content.syncDecode(LWACustomerProfileResponse.self)
                 } catch {
-                    throw LoginWithAmazonError(id: .couldNotDecode, file: #file, function: #function, line: #line)
+                    throw LoginWithAmazonError(.couldNotDecode, file: #file, function: #function, line: #line)
                 }
         }
     }
@@ -288,12 +256,12 @@ struct LoginWithAmazonController: RouteCollection {
     
     func getPlaceholderUserAccount (placeholderUserId: String, context req: Request) throws -> Future<User?> {
         guard let placeholderUuid = UUID.init(placeholderUserId) else {
-            throw LoginWithAmazonError(id: .couldNotInitializeAccount, file: #file, function: #function, line: #line)
+            throw LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line)
         }
         do {
             return try User.query(on: req).filter(\.id == placeholderUuid).first()
         } catch {
-            throw LoginWithAmazonError(id: .couldNotInitializeAccount, file: #file, function: #function, line: #line)
+            throw LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line)
         }
     }
     
@@ -321,7 +289,7 @@ struct LoginWithAmazonController: RouteCollection {
     func installFireplaces(userAccount: Future<User>, amazonAccount: Future<AmazonAccount>, discoveredFps: Future<[Fireplace]>, context req: Request) throws -> Future<String> {
         return flatMap(to: String.self, userAccount, amazonAccount, discoveredFps) { usrAcct, azAcct, candidateFps in
             guard usrAcct.id != nil, azAcct.id != nil else {throw
-                LoginWithAmazonError(id: .couldNotCreateFireplaces, file: #file, function: #function, line: #line)
+                LoginWithAmazonError(.couldNotCreateFireplaces, file: #file, function: #function, line: #line)
             }
             var savedAzFpTracker:[Future<AlexaFireplace>] = Array ()
             var updatedFpTracker:[Future<Fireplace>] = Array ()
@@ -358,7 +326,7 @@ struct LoginWithAmazonController: RouteCollection {
                 return Future.map(on: req) {ret}
             }
             }.catchFlatMap { err in
-                throw LoginWithAmazonError(id: .couldNotCreateFireplaces, file: #file, function: #function, line: #line)
+                throw LoginWithAmazonError(.couldNotCreateFireplaces, file: #file, function: #function, line: #line)
         }
     }
 }

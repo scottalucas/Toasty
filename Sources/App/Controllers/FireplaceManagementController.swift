@@ -17,20 +17,20 @@ struct FireplaceManagementController {
         do {
             guard let postUrl = URL.init(string: url)
                 else {
-                    throw ImpError(id: .badUrl, file: #file, function: #function, line: #line)
+                    throw ImpError(.badUrl, file: #file, function: #function, line: #line)
             }
             return try req.client().post(postUrl) { newPost in
                 newPost.http.headers.add(name: .contentType, value: "application/json")
                 do {
                     try newPost.content.encode(action)
                 } catch {
-                    throw ImpError(id: .couldNotEncodeImpAction, file: #file, function: #function, line: #line)
+                    throw AlexaError(.couldNotEncode, file: #file, function: #function, line: #line)
                 }
                 }.map (to: ImpFireplaceAck.self) { res in
                     do {
                         return try res.content.syncDecode(ImpFireplaceAck.self)
                     } catch {
-                        throw ImpError(id: .couldNotDecodeImpResponse, file: #file, function: #function, line: #line)
+                        throw AlexaError(.couldNotDecode, file: #file, function: #function, line: #line)
                     }
             }
         } catch {

@@ -48,12 +48,14 @@ extension User {
 
 extension User {
     class func getAmazonAccount (usingToken token: String, on req: Request) throws -> Future<AmazonAccount> {
-        guard let client = try? req.make(Client.self) else { throw Abort(.failedDependency, reason: "Could not create client to get amazon account.")}
-        if token == "access-token-from-skill" { //for testing on
+        guard let client = try? req.make(Client.self) else {
+            throw LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line)
+        }
+        if token == "test" { //for testing on
             return AmazonAccount.query(on: req).first()
                 .map (to: AmazonAccount.self) { optAcct in
                     guard let acct = optAcct else {
-                        throw Abort(.notFound, reason: "No AZ accounts in the system.")
+                        throw LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line)
                     }
                     return acct
             }
@@ -70,20 +72,18 @@ extension User {
                                 return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
                             } .map (to: AmazonAccount.self) { optAcct in
                                 guard let acct = optAcct else {
-                                    throw Abort(.notFound, reason: "Could not find Amazon account in database.")
+                                    throw LoginWithAmazonError(.couldNotCreateAccount, file: #file, function: #function, line: #line)
                                 }
                                 return acct
                         }
                     } catch {
-                        throw Abort(.notFound, reason: "Could not find Amazon account in database.")
+                        throw LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line)
                     }
                 default:
-                    do {
-                        let profileRetrieveError = try res.content.syncDecode(LWACustomerProfileResponseError.self)
-                        throw Abort(.notFound, reason: "Couldn't retrieve Amazon account, error: \(profileRetrieveError.error), detail: \(profileRetrieveError.error_description)")
-                    } catch {
-                        throw Abort(.notFound, reason: "Failed to retrieve Amazon user id, error code: \(res.http.status.code)")
+                    if let profileRetrieveError = try? res.content.syncDecode(LWACustomerProfileResponseError.self) {
+                        throw LoginWithAmazonError(.couldNotRetrieveAmazonAccount(profileRetrieveError), file: #file, function: #function, line: #line)
                     }
+                    throw LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line)
                 }
         }
     }

@@ -7,11 +7,11 @@ let package = Package(
         .package(url: "https://github.com/vapor/vapor.git", from: "3.0.0-rc"),
         .package(url: "https://github.com/vapor/fluent-postgresql.git", from: "1.0.0-rc"),
         .package(url: "https://github.com/vapor/leaf.git", from: "3.0.0-rc"),
-        .package(url: "https://github.com/kylef-archive/JSONSchema.swift.git", from: "0.3.0")
+        .package(url: "./JSONValidator", from: "1.0.0")
     ],
     
     targets: [
-        .target(name: "App", dependencies: ["FluentPostgreSQL", "Vapor", "Leaf", "JSONSchema"]),
+        .target(name: "App", dependencies: ["FluentPostgreSQL", "Vapor", "Leaf"]),
         .target(name: "Run", dependencies: ["App"]),
         .testTarget(name: "AppTests", dependencies: ["App"])
     ]

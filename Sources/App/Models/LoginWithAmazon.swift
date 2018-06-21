@@ -74,7 +74,13 @@ struct LWACustomerProfileResponse:Content {
 struct LWACustomerProfileResponseError: Content { //MARK
     let error: String
     let error_description: String
-    let request_id: String
+    let request_id: String?
+    
+    init () {
+        error = ""
+        error_description = ""
+        request_id = nil
+    }
 }
 
 struct LWAUserScopeError : Decodable, Error { //MARK
@@ -114,7 +120,7 @@ struct LWAUserScopeError : Decodable, Error { //MARK
     
     mutating func setMessage (message: String) throws {
         guard msg == Category(rawValue: message) else {
-            throw Abort(.notFound, reason: "Not able to create error message for failed User scope operation.")
+            throw LoginWithAmazonError(.lwaError , file: #file, function: #function, line: #line)
         }
     }
 }
@@ -180,72 +186,4 @@ enum LWAInteractionMode: String {
     case always, auto, never
 }
 
-//Error structures
-struct LoginWithAmazonError: Error {
-    var id:Category
-    var file: String?
-    var function: String?
-    var line: Int?
-    
-    enum Category {
-        case serverMisconfigured, serverError, couldNotInitializeAccount, unauthorized, couldNotRetrieveAmazonAccount (LWACustomerProfileResponseError), failedToRetrieveAuthToken (LWAAuthTokenResponseError), failedToRetrieveAccessToken (LWAAccessTokenGrantError), failedToRetrieveUserScope(LWAUserScopeError), couldNotCreateAccount, couldNotCreateRequest, lwaError, noAvailableFireplaces, couldNotDecode, couldNotCreateFireplaces, unknown
-    }
-    var description:String {
-        switch id {
-            case .serverMisconfigured:
-                return "Server misconfigured."
-            case .serverError:
-                return "Server error."
-            case .couldNotInitializeAccount:
-                return "Could not initialize account on Toasty device cloud."
-            case .unauthorized:
-                return "Amazon account is not authorized to communicate with Toasty device cloud."
-            case .couldNotRetrieveAmazonAccount(let err): //LWACustomerProfileResponseError
-                return err.error_description
-            case .failedToRetrieveAuthToken(let err): //LWAAuthTokenResponseError
-                return err.error_description
-            case .failedToRetrieveAccessToken(let err): //LWAAccessTokenGrantError
-                return err.error_description
-            case .failedToRetrieveUserScope(let err):
-                return err.message
-            case .couldNotCreateAccount:
-                return "Could not create a Toasty device cloud account."
-            case .couldNotCreateRequest:
-                return "Could not create an authentication request."
-            case .lwaError:
-                return "Login with Amazon returned an error."
-            case .noAvailableFireplaces:
-                return "Toasty device cloud account does not have any fireplaces."
-            case .couldNotDecode:
-                return "Login wth Amazon sent a response that Toasty could not decode."
-            case .couldNotCreateFireplaces:
-                return "Unable to create fireplace records in Toasty."
-            case .unknown:
-                return "Unknown LWA error."
-        }
-    }
-    var uri: String? {
-        switch id {
-        case .failedToRetrieveAccessToken(let err):
-            return err.error_uri
-        default:
-            return nil
-        }
-    }
-    var context: [String:String] {
-        return [
-            "RETRYURL": ToastyAppRoutes.site + "/" + ToastyAppRoutes.lwa.login,
-            "ERROR" : description,
-            "ERRORURI" : uri ?? "",
-            "ERRORFILE" : file ?? "not captured",
-            "ERRORFUNCTION" : function ?? "not captured",
-            "ERRORLINE" : line.debugDescription
-        ]
-        }
-    init(id: Category, file: String?, function: String?, line: Int?) {
-        self.id = id
-        self.file = file
-        self.function = function
-        self.line = line
-    }
-}
+

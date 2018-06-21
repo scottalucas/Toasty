@@ -16,11 +16,6 @@ final class AlexaFireplace: Codable {
         parentAmazonAccountId = azId
         self.status = (fireplace.powerSource != .line) ? Status.notRegisterable : Status.availableForRegistration
     }
-    
-    func didCreate(on connection: PostgreSQLConnection) throws -> EventLoopFuture<AlexaFireplace> {
-        logger.info("Created new Alexa Fireplace\n\tid: \(id?.uuidString ?? "none")\n\tParent AZ account: \(parentAmazonAccountId)")
-        return Future.map(on: connection) {self}
-    }
 }
 
 extension AlexaFireplace:PostgreSQLUUIDModel {}
@@ -45,27 +40,45 @@ extension AlexaFireplace {
 }
 
 struct AlexaEnvironment: Codable {
-    static let basicInterface: String = "Alexa"
-    static let capbilityType:String = "AlexaInterface"
-    static let interfaceVersion: String = "3"
-    static let discoveryNamespace: String = "Alexa.Discovery"
-    static let discoveryResponseHeaderName: String = "Discover.Response"
-    enum SmartHomeInterface: String {
-        case discovery = "Alexa.Discovery", discoveryResponse = "Discover.Response", fireplace = "Alexa.PowerController", health = "Alexa.EndpointHealth"
+    enum InterfaceVersion: String, Codable {
+        case latest = "3"
     }
+    enum PayloadVersion: String, Codable {
+        case latest = "3"
+    }
+    enum Namespace: String, Codable {
+        case basic = "Alexa", discovery = "Alexa.Discovery", power = "Alexa.PowerController", health = "Alexa.EndpointHealth"
+        var encodeAsSecondary:Bool {
+            switch self {
+                case .health:
+                    return true
+                default:
+                    return false
+            }
+        }
+    }
+    enum Name: String, Codable {
+        case discoverResponse = "Discover.Response", response = "Response", error = "ErrorResponse", power = "powerState", connectivity = "connectivity", on = "TurnOn", off = "TurnOff", malformed
+    }
+}
+
+struct FireplaceConstants: Codable { //set all fireplace constants here
+    static let manufacturerName: String = "Toasty Fireplace"
+    static let description: String = "Smart home fireplace controller"
+    static let displayCategories:[AlexaDisplayCategories] = [.OTHER]
 }
 
 // Discovery structs
 struct AlexaFireplaceEndpoint: Codable { //use this to create the discovery response
     var endpointId:AlexaFireplace.ID
-    var manufacturerName:String = "Toasty Fireplace"
+    var manufacturerName:String = FireplaceConstants.manufacturerName
     var friendlyName:String
-    var description:String = "Smart home fireplace controller"
-    var displayCategories:[AlexaDisplayCategories] = [.OTHER]
+    var description:String = FireplaceConstants.description
+    var displayCategories:[AlexaDisplayCategories] = FireplaceConstants.displayCategories
     var cookie:[String:String]? = [:]
     var capabilities: [AlexaCapability] = [
-        AlexaCapability.init(interface: AlexaEnvironment.basicInterface, version: AlexaEnvironment.interfaceVersion, supportedProps: nil, reported: nil, retrievable: nil),
-        AlexaCapability.init(interface: "Alexa.PowerController", version: AlexaEnvironment.interfaceVersion, supportedProps: [["name":"powerState"]], reported: false, retrievable: false)]
+        AlexaCapability.init(interface: .basic, version: .latest, supportedProps: nil, reported: nil, retrievable: nil),
+        AlexaCapability.init(interface: .power, version: .latest, supportedProps: [["name":"powerState"]], reported: false, retrievable: false)]
     init? (from fireplace:Fireplace) {
         guard let id = fireplace.id else {return nil}
         endpointId = id
@@ -74,9 +87,9 @@ struct AlexaFireplaceEndpoint: Codable { //use this to create the discovery resp
 }
 
 final class AlexaCapability: Codable {
-    let type: String = AlexaEnvironment.capbilityType
-    let interface: String
-    let version: String = AlexaEnvironment.interfaceVersion
+    let type:Capability = .basic
+    let interface: AlexaEnvironment.Namespace
+    let version: AlexaEnvironment.InterfaceVersion = .latest
     let properties: Properties?
     struct Properties: Codable {
         let supported: [[String:String]]?
@@ -87,10 +100,14 @@ final class AlexaCapability: Codable {
             self.supported = supported
             self.proactivelyReported = proactivelyReported
             self.retrievable = retrievable
+            }
         }
+    
+    enum Capability: String, Codable {
+        case basic = "AlexaInterface"
     }
     
-    init(interface: String, version: String, supportedProps:[[String:String]]?, reported: Bool?, retrievable: Bool?) {
+    init(interface: AlexaEnvironment.Namespace, version: AlexaEnvironment.InterfaceVersion, supportedProps:[[String:String]]?, reported: Bool?, retrievable: Bool?) {
         self.interface = interface
         properties = Properties(supported: supportedProps, proactivelyReported: reported, retrievable: retrievable)
     }
@@ -109,7 +126,7 @@ struct AlexaDiscoveryRequest: Codable {
     }
 }
 
-struct AlexaDiscoveryResponse: Codable, Content {
+struct AlexaDiscoveryResponse: Codable, Content, ResponseEncodable {
     let event:Event
     
     struct Event: Codable {
@@ -126,9 +143,8 @@ struct AlexaDiscoveryResponse: Codable, Content {
             }
         }
     }
-    
-    init (msgId: String, corrToken: String, sendBack fireplaces: [Fireplace]) {
-        let head = AlexaHeader(namespace: AlexaEnvironment.discoveryNamespace, name: AlexaEnvironment.discoveryResponseHeaderName, payloadVersion: AlexaEnvironment.interfaceVersion, messageId: msgId, correlationToken: corrToken)
+    init (msgId: String, sendBack fireplaces: [Fireplace]) {
+        let head = AlexaHeader(namespace: .discovery, name: .discoverResponse, payloadVer: .latest, msgId: msgId, corrToken: nil)
         event = Event(header: head, payload: Endpoints(using: fireplaces))
     }
     
@@ -163,11 +179,58 @@ struct AlexaEvent:Codable {
 
 // Common structs
 struct AlexaHeader:Codable {
-    let namespace: String
-    let name:String
-    let payloadVersion:String
+    let namespace: AlexaEnvironment.Namespace
+    let name:AlexaEnvironment.Name
+    let payloadVersion:AlexaEnvironment.PayloadVersion
     let messageId:String
     let correlationToken:String?
+    
+    init (namespace: AlexaEnvironment.Namespace, name: AlexaEnvironment.Name, payloadVer: AlexaEnvironment.PayloadVersion, msgId: String, corrToken: String?) {
+        self.namespace = namespace
+        self.name = name
+        payloadVersion = payloadVer
+        messageId = msgId
+        correlationToken = corrToken
+    }
+    
+    init (msgId: String, corrToken: String?) {
+        self.namespace = .basic
+        self.name = .response
+        payloadVersion = .latest
+        messageId = msgId
+        correlationToken = corrToken
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case namespace, name, payloadVersion, messageId, correlationToken
+    }
+}
+
+
+extension AlexaHeader { //decoding strategy
+    init (from decoder: Decoder) throws {
+        let allValues = try decoder.container(keyedBy: CodingKeys.self)
+        namespace = try allValues.decode(AlexaEnvironment.Namespace.self, forKey: .namespace)
+        payloadVersion = try allValues.decode(AlexaEnvironment.PayloadVersion.self, forKey: .payloadVersion)
+        messageId = try allValues.decode(String.self, forKey: .messageId)
+        correlationToken = try allValues.decodeIfPresent(String.self, forKey: .correlationToken)
+        if let nameRaw = try? allValues.decode(AlexaEnvironment.Name.self, forKey: .name) { //to better handle possible unexpected values from Alexa
+            name = nameRaw
+        } else {
+            name = AlexaEnvironment.Name.malformed
+        }
+    }
+}
+
+extension AlexaHeader { //encoding strategy
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(name, forKey: .name)
+        try container.encode(namespace, forKey: .namespace)
+        try container.encode(messageId, forKey: .messageId)
+        try container.encode(payloadVersion, forKey: .payloadVersion)
+        try container.encodeIfPresent(correlationToken, forKey: .correlationToken)
+    }
 }
 
 struct AlexaPayload:Codable {
@@ -208,10 +271,22 @@ extension AlexaPayload { //initializer for Error payloads
 }
 
 struct AlexaScope:Codable {
-    let token:String
-    let type:String? = nil
-    let partition:String? = nil
-    let userId:String? = nil
+    var token:String
+    var type:String? = nil
+    var partition:String? = nil
+    var userId:String? = nil
+    
+    init (token: String, type: String?, partition: String?, userId: String?) {
+        self.token = token
+        self.type = type
+        self.partition = partition
+        self.userId = userId
+    }
+    
+    init (token: String) {
+        self.token = token
+        self.type = "BearerToken"
+    }
 }
 
 struct AlexaContext:Codable {
@@ -237,21 +312,31 @@ struct AlexaEndpoint:Codable {
 }
 
 struct AlexaProperty: Codable {
-    private var namespaceType: Interface
-    var namespace:String {
-        return namespaceType.rawValue
-    }
-    var name:String
+    var namespace:AlexaEnvironment.Namespace
+    var name:AlexaEnvironment.Name
     var value: String
     var timeOfSample: String?
     var uncertaintyInMilliseconds:Int?
     
-    init (namespace: Interface, name: String, value: String, time: Date?, uncertainty: Int?) {
-        namespaceType = namespace
+    init (namespace: AlexaEnvironment.Namespace, name: AlexaEnvironment.Name, value: String, time: Date?, uncertainty: Int?) {
+        self.namespace = namespace
         self.name = name
         self.value = value
         timeOfSample = time?.iso8601 ?? Date().iso8601
         uncertaintyInMilliseconds = uncertainty ?? 200
+    }
+    
+    init (endpointHealth: EndpointHealth) {
+        namespace = .health
+        name = AlexaEnvironment.Name.connectivity
+        value = endpointHealth.rawValue
+        timeOfSample = Date().iso8601
+        uncertaintyInMilliseconds = 200
+        
+    }
+    
+    enum EndpointHealth:String {
+        case ok = "OK", unreachable = "UNREACHABLE"
     }
     
     enum Interface: String {
@@ -269,6 +354,8 @@ struct AlexaProperty: Codable {
         case namespace
         case name
         case value
+        case timeOfSample
+        case uncertaintyInMilliseconds
     }
     
     enum ValueKeys: String, CodingKey {
@@ -281,7 +368,9 @@ extension AlexaProperty { //encoding strategy
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(namespace, forKey: .namespace)
         try container.encode(name, forKey: .name)
-        if namespaceType.encodeAsSecondary {
+        try container.encodeIfPresent(timeOfSample, forKey: .timeOfSample)
+        try container.encodeIfPresent(uncertaintyInMilliseconds, forKey: .uncertaintyInMilliseconds)
+        if namespace.encodeAsSecondary {
             var secondaryValueInfo = container.nestedContainer(keyedBy: ValueKeys.self, forKey: .value)
             try secondaryValueInfo.encode(value, forKey: .value)
         } else {
@@ -294,16 +383,37 @@ extension AlexaProperty { //decoding strategy
     init (from decoder: Decoder) throws {
         let allValues = try decoder.container(keyedBy: CodingKeys.self)
         let ns = try allValues.decode(String.self, forKey: .namespace)
-        guard let inType = Interface(rawValue: ns) else {
-            throw Abort(.notFound, reason: "Could not decode property, unknown interface type.")
+        guard let inType = AlexaEnvironment.Namespace(rawValue: ns) else {
+            throw AlexaError(.couldNotDecodeProperty , file: #file, function: #function, line: #line)
         }
-        namespaceType = inType
-        name = try allValues.decode(String.self, forKey: .name)
-        do {
-            value = try allValues.decode(String.self, forKey: .value)
-        } catch {
-            value = String(try allValues.decode(Int.self, forKey: .value))
+        namespace = inType
+        guard
+            let inboundName = try? allValues.decode(String.self, forKey: .name),
+            let n = AlexaEnvironment.Name(rawValue: inboundName)
+        else {
+            throw AlexaError(.couldNotDecodeProperty , file: #file, function: #function, line: #line)
         }
+        name = n
+        if let v = try? allValues.decode(String.self, forKey: .value) {
+            value = v
+        } else if let v = try? allValues.decode(Int.self, forKey: .value) {
+            value = String(v)
+        } else if let v = try? allValues.decode([String:String].self, forKey: .value) {
+            guard
+                let vStr = v["value"]
+                else {
+                    throw AlexaError(.couldNotDecodeProperty , file: #file, function: #function, line: #line)
+            }
+            value = vStr
+        } else if let v = try? allValues.decode([String:Int].self, forKey: .value) {
+        guard
+            let vInt = v["value"]
+            else {
+                throw AlexaError(.couldNotDecodeProperty , file: #file, function: #function, line: #line)
+            }
+            value = String(vInt)
+        } else {
+            throw AlexaError(.couldNotDecodeProperty , file: #file, function: #function, line: #line)        }
     }
 }
 
@@ -336,10 +446,7 @@ struct AlexaErrorResponse: Codable, Content, ResponseEncodable {
     var event: AlexaEvent
 
     init(msgId: String, corrToken cToken: String?, endpointId epId: String, accessToken aToken: String, errType eType: AlexaErrorValue, message msg: String) {
-//        let hdr = AlexaHeader(namespace: AlexaEnvironment.basicInterface, name: "ErrorResponse", payloadVersion: AlexaEnvironment.interfaceVersion, messageId: msgId, correlationToken: corrToken)
-//        let ep = AlexaEndpoint.init(using: endpoint, accessToken: token)
-//        let pl = AlexaPayload.init(err: errType, reason: message)
-        self.event = AlexaEvent(header: AlexaHeader(namespace: AlexaEnvironment.basicInterface, name: "ErrorResponse", payloadVersion: AlexaEnvironment.interfaceVersion, messageId: msgId, correlationToken: cToken), endpoint: AlexaEndpoint(useId: epId, accessToken: aToken), payload: AlexaPayload.init(err: eType, reason: msg))
+    self.event = AlexaEvent(header: AlexaHeader(namespace: .basic, name: .error, payloadVer: .latest, msgId: msgId, corrToken: cToken), endpoint: AlexaEndpoint(useId: epId, accessToken: aToken), payload: AlexaPayload.init(err: eType, reason: msg))
     }
     
     init(event: AlexaEvent) {
@@ -347,53 +454,11 @@ struct AlexaErrorResponse: Codable, Content, ResponseEncodable {
     }
 }
 
-struct AlexaError: Error {
-    var id:Category
-    var file: String?
-    var function: String?
-    var line: Int?
-    
-    enum Category {
-        case couldNotDecodeDiscovery, couldNotRetrieveUserAccount, couldNotDecodePowerControllerDirective, failedToEncodeResponse, failedToLookupUser, noCorrespondingToastyAccount, childFireplacesNotFound, unknown
-    }
-    var description:String {
-        switch id {
-        case .couldNotDecodeDiscovery:
-            return "Could not decode Alexa discovery message."
-        case .couldNotRetrieveUserAccount:
-            return "Could not retrieve user account."
-        case .couldNotDecodePowerControllerDirective:
-            return "Could not decode instructions from Alexa."
-        case .failedToEncodeResponse:
-            return "Not able to send a return message to Alexa, decode failed."
-        case .failedToLookupUser:
-            return "Could not find a user associated with the endpoint sent by Alexa."
-        case .noCorrespondingToastyAccount:
-            return "Unable to find a related account on the Toasty cloud."
-        case .childFireplacesNotFound:
-            return "Did not find any fireplaces associated with the Amazon user."
-        case .unknown:
-            return "Unknown Alexa error."
-        }
-    }
-
-    var context: [String:String] {
-        return [
-            "RETRYURL": ToastyAppRoutes.site + "/" + ToastyAppRoutes.lwa.login,
-            "ERROR" : description,
-            "ERRORURI" : "",
-            "ERRORFILE" : file ?? "not captured",
-            "ERRORFUNCTION" : function ?? "not captured",
-            "ERRORLINE" : line.debugDescription
-        ]
-    }
-    init(id: Category, file: String?, function: String?, line: Int?) {
-        self.id = id
-        self.file = file
-        self.function = function
-        self.line = line
-    }
+struct AlexaReportState: Codable {
+    var directive: AlexaDirective
 }
+
+
 
 extension Formatter {
     static let iso8601: DateFormatter = {

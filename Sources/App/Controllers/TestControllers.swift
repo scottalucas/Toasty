@@ -43,7 +43,7 @@ struct TestController: RouteCollection {
             return User(name: "Placeholder", username: "Placeholder")
                 .save(on: req)
                 .flatMap(to: [Fireplace].self) { usr in
-                    guard let usrId = usr.id else { throw Abort(.notFound, reason: "Failed to create placeholder user account")}
+                    guard let usrId = usr.id else { throw AlexaError(.placeholderAccountNotFound, file: #file, function: #function, line: #line)}
                     var saveResults: [Future<Fireplace>] = []
                     for fireplace in fireplaces {
                     saveResults.append(Fireplace.init(power: fireplace.powerSource, imp: fireplace.controlUrl, user: usrId, friendly: fireplace.friendlyName).save(on: req))
