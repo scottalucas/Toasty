@@ -11,43 +11,56 @@ import Vapor
 
 
 struct ImpFireplaceAction: Encodable, Content {
-    var action:Directive
+    var name:Directive
     enum Directive: String, Codable, Content {
-        case on = "TurnOn", off = "TurnOff"
+        case on = "TurnOn", off = "TurnOff", update = "Update"
     }
     init (action: String) throws {
         guard Directive(rawValue: action) != nil else { throw AlexaError(.didNotUnderstandFireplaceCommand, file: #file, function: #function, line: #line)}
-        self.action = Directive(rawValue: action)!
+        name = Directive(rawValue: action)!
+    }
+    
+    init (action: Directive) {
+        name = action
     }
 }
 
-struct ImpFireplaceAck: Decodable {
+struct ImpFireplaceStatus: Codable { //messages for Imp status communication
     var ack: AcknowledgeMessage
+    var value: ValueMessage? //matches what's needed for status response to Alexa
+    var uncertaintyInMilliseconds: Int?
     
-    enum AcknowledgeMessage: String, Decodable {
+    enum AcknowledgeMessage: String, Codable {
         case acceptedOn = "ON", acceptedOff = "OFF", rejected = "UNKNOWN", notAvailable = "NA"
     }
     
+    enum ValueMessage: String, Codable {
+        case ON, OFF
+    }
+    
     enum CodingKeys: String, CodingKey {
-        case ack
+        case ack, value
     }
     
     init(ack: AcknowledgeMessage? = nil) {
         self.ack = ack ?? .notAvailable
+        value = ValueMessage(rawValue: (self.ack.rawValue))
     }
 }
 
-extension ImpFireplaceAck { //decoding strategy
+extension ImpFireplaceStatus { //decoding strategy, only used when receiving messages from Imp
     init (from decoder: Decoder) throws {
         let allValues = try decoder.container(keyedBy: CodingKeys.self)
         ack = try allValues.decode(AcknowledgeMessage.self, forKey: .ack)
+        value = ValueMessage(rawValue: ack.rawValue)
     }
 }
 
-struct ImpFireplaceStatus: Codable, Content {
-    let status:Status
-    enum Status: String, Codable {
-        case ON, OFF, NotAvailable
+extension ImpFireplaceStatus { //encoding strategy, only used when sending message to Alexa
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(value, forKey: .value)
     }
 }
+
 

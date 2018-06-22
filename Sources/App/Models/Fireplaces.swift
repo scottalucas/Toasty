@@ -7,6 +7,8 @@ final class Fireplace: Codable {
     var friendlyName:String
     var powerSource:PowerSource
     var controlUrl:String //unique to each physical fireplace
+    var status:String? //flame is on or off
+    var lastStatusUpdate: Date?
     var parentUserId:User.ID
 
     enum PowerSource: Int, Codable, PostgreSQLEnumType {
@@ -18,6 +20,14 @@ final class Fireplace: Codable {
         controlUrl = agentUrl
         parentUserId = acctId
         friendlyName = name ?? "Toasty Fireplace"
+        status = nil
+        lastStatusUpdate = nil
+    }
+    
+    func uncertainty () -> Int? {
+        guard let lastUpdate = lastStatusUpdate else {return nil}
+        let milliSecondsElapsed:Int = Int(lastUpdate.timeIntervalSinceNow * 1000)
+        return abs(milliSecondsElapsed)
     }
 }
 

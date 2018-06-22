@@ -8,7 +8,12 @@ final class FireplaceOnOffTests: XCTestCase {
     var app: Application!
     
     var jsonValidator = Validator.shared
-    
+    var testUser:User? = nil
+    var testAzAcct: AmazonAccount? = nil
+    var goodTestFp1: Fireplace? = nil
+    var goodTestFp2: Fireplace? = nil
+    var badUrltestFp1: Fireplace? = nil
+    var goodTestFireplaces: [Fireplace]? = nil
     
     override func setUp() {
 
@@ -36,16 +41,37 @@ final class FireplaceOnOffTests: XCTestCase {
         }
         let db = try! app.newConnection(to: .psql).wait()
         defer { db.close() }
-        let user = try! User.init().save(on: db).wait()
-        let prof = LWACustomerProfileResponse(user_id: user.id!.uuidString, email: "someone@somewhere.com", name: "Test", postal_code: "94024")
-        let azAcct = try! AmazonAccount(with: prof, user: user)!.save(on: db).wait()
-        let fp1 = try! Fireplace(power: .battery, imp: "https://agent.electricimp.com/7NjKoDqiOxi5", user: user.id!, friendly: "test 1").save(on: db).wait()
-        let fp2 = try! Fireplace(power: .line, imp: "test2 url", user: user.id!, friendly: "test 2").save(on: db).wait()
-        _ = try! AlexaFireplace(childOf: fp1, associatedWith: azAcct)!.save(on: db).wait()
-        _ = try! AlexaFireplace(childOf: fp2, associatedWith: azAcct)!.save(on: db).wait()
+        testUser = try! User.init().save(on: db).wait()
+        let prof = LWACustomerProfileResponse(user_id: testUser!.id!.uuidString, email: "someone@somewhere.com", name: "Test", postal_code: "94024")
+        testAzAcct = try! AmazonAccount(with: prof, user: testUser!)!.save(on: db).wait()
+        goodTestFp1 = try! Fireplace(power: .battery, imp: "https://agent.electricimp.com/2arZveArVIRJ", user: testUser!.id!, friendly: "test 1").save(on: db).wait()
+        goodTestFp2 = try! Fireplace(power: .battery, imp: "https://agent.electricimp.com/7NjKoDqiOxi5", user: testUser!.id!, friendly: "test 1").save(on: db).wait()
+        badUrltestFp1 = try! Fireplace(power: .line, imp: "test2 url", user: testUser!.id!, friendly: "test 2").save(on: db).wait()
+        _ = try! AlexaFireplace(childOf: goodTestFp1!, associatedWith: testAzAcct!)!.save(on: db).wait()
+        _ = try! AlexaFireplace(childOf: goodTestFp2!, associatedWith: testAzAcct!)!.save(on: db).wait()
+        _ = try! AlexaFireplace(childOf: badUrltestFp1!, associatedWith: testAzAcct!)!.save(on: db).wait()
+        goodTestFireplaces = [goodTestFp1!, goodTestFp2!]
+        print ("""
+
+
+***********************************************************************
+****************TESTING UNDERWAY***************************************
+***********************************************************************
+
+
+""")
     }
 
     override func tearDown() {
+        print ("""
+
+
+***********************************************************************
+****************TESTING COMPLETE***************************************
+***********************************************************************
+
+
+""")
         try? app.runningServer?.close().wait()
     }
     
@@ -53,18 +79,31 @@ final class FireplaceOnOffTests: XCTestCase {
         try! fpDiscoverySuccess(accessToken: "test")
     }
     
+    func testStatusReport () {
+        for fireplace in goodTestFireplaces! {
+            try! statusReportSuccess(accessToken: "test", fireplace: fireplace)
+        }
+    }
+    
     func testFpSuccessResponse () {
-        try! fpSuccessResponse(action: "TurnOn", impTarget: "https://agent.electricimp.com/7NjKoDqiOxi5")
-        try! fpSuccessResponse(action: "TurnOff", impTarget: "https://agent.electricimp.com/7NjKoDqiOxi5")
+        for fireplace in goodTestFireplaces! {
+            try! fpSuccessResponse(action: "TurnOn", fireplace: fireplace)
+            try! fpSuccessResponse(action: "TurnOff", fireplace: fireplace)
+        }
+
     }
     
     func testFpFailResponse () {
-        print ("\n\n\n\n********************MALFORMED IMP ACTION*****************\n")
-        try! fpFailResponse(action: "malformed", impTarget: "https://agent.electricimp.com/7NjKoDqiOxi5", accessToken: "test")
+        for fireplace in goodTestFireplaces! {
+            print ("\n\n\n\n********************MALFORMED IMP ACTION*****************\n")
+            try! fpFailResponse(action: "malformed", accessToken: "test", fireplace: fireplace)
+            print ("\n\n\n\n********************MALFORMED ACCESS TOKEN*****************\n")
+            try! fpFailResponse(action: "TurnOff", accessToken: "testFail", fireplace: fireplace)
+            
+        }
         print ("\n\n\n\n********************MALFORMED IMP URL*****************\n")
-        try! fpFailResponse(action: "TurnOff", impTarget: "https://agent.electricimp.com/notfound", accessToken: "test")
-        print ("\n\n\n\n********************MALFORMED ACCESS TOKEN*****************\n")
-        try! fpFailResponse(action: "TurnOff", impTarget: "https://agent.electricimp.com/7NjKoDqiOxi5", accessToken: "testFail")
+        try! fpFailResponse(action: "TurnOff", accessToken: "test", fireplace: badUrltestFp1!)
+
     }
     
     func fpDiscoverySuccess (accessToken: String) throws {
@@ -110,11 +149,10 @@ final class FireplaceOnOffTests: XCTestCase {
         }
     }
     
-    func fpSuccessResponse(action: String, impTarget: String) throws {
+    func fpSuccessResponse(action: String, fireplace: Fireplace) throws {
         let db = try! app.newConnection(to: .psql).wait()
         defer { db.close() }
-        let targetFp = try! Fireplace.query(on: db).filter(\.controlUrl == impTarget).first().wait()
-        let endpointId = targetFp!.id
+        let endpointId = fireplace.id
         let msgId:String = TestHelpers.randomAlphaNumericString(length: 10)
         let corrToken:String = TestHelpers.randomAlphaNumericString(length: 10)
         let accToken:String = "test"
@@ -130,8 +168,8 @@ final class FireplaceOnOffTests: XCTestCase {
         let responseJsonString = String.init(data: responseJson, encoding: .utf8)
         XCTAssertTrue(jsonValidator.analyze(responseJsonString!), "JSON did not validate.")
         XCTAssert(res.http.status.code == 200, "Returned HTTP status code other than 200.")
-        guard let responseToAlexa:AlexaResponse = try? res.content.syncDecode(AlexaResponse.self) else {
-            XCTFail("Could not decode response as AlexaResponse.")
+        guard let responseToAlexa:AlexaPowerControllerResponse = try? res.content.syncDecode(AlexaPowerControllerResponse.self) else {
+            XCTFail("Could not decode response as AlexaPowerControllerResponse.")
             print(responseJsonString ?? "No JSON to print after decode failure, test \(#function), line \(#line).")
             return
         }
@@ -158,11 +196,10 @@ final class FireplaceOnOffTests: XCTestCase {
         XCTAssert(endpoint.endpointId == endpointId!.uuidString, "Endpoint ID incorrect.")
     }
     
-    func fpFailResponse(action: String, impTarget: String, accessToken: String) throws {
+    func fpFailResponse(action: String, accessToken: String, fireplace: Fireplace) throws {
         let db = try! app.newConnection(to: .psql).wait()
         defer { db.close() } //closes the database when out of scope no matter what.
-        let targetFp = try! Fireplace.query(on: db).filter(\.controlUrl == impTarget).first().wait()
-        let endpointId = targetFp?.id ?? UUID.init()
+        let endpointId = fireplace.id!
         let msgId:String = TestHelpers.randomAlphaNumericString(length: 10)
         let corrToken:String = TestHelpers.randomAlphaNumericString(length: 10)
         let accToken:String = accessToken
@@ -199,6 +236,21 @@ final class FireplaceOnOffTests: XCTestCase {
         XCTAssert(endpoint.endpointId == endpointId.uuidString, "Endpoint ID incorrect.")
         XCTAssertNotNil(payload.type, "No payload type.")
         XCTAssertNotNil(payload.message, "No error message.")
+    }
+    
+    func statusReportSuccess(accessToken: String, fireplace: Fireplace) throws {
+        let json = String(format: AlexaJson.stateReportReq, fireplace.id!.uuidString, accessToken)
+        let jsonData = json.data(using: .utf8)!
+        let res = try! app.client().post("http://192.168.1.111:8080/Alexa/ReportState") {newPost in
+            newPost.http.body = HTTPBody(data: jsonData)
+            newPost.http.headers.add(name: .contentType, value: "application/json")
+            }
+            .wait()
+        let responseJson = (res.http.body).data!
+        let responseJsonString = String.init(data: responseJson, encoding: .utf8)
+        print (responseJsonString)
+        XCTAssert(res.http.status.code == 200, "Returned HTTP status code \(res.http.status.code), should be 200.")
+        XCTAssertTrue(jsonValidator.analyze(responseJsonString!), "Invalid JSON.")
     }
 
     static let allTests = [

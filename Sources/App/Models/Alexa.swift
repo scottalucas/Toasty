@@ -58,7 +58,10 @@ struct AlexaEnvironment: Codable {
         }
     }
     enum Name: String, Codable {
-        case discoverResponse = "Discover.Response", response = "Response", error = "ErrorResponse", power = "powerState", connectivity = "connectivity", on = "TurnOn", off = "TurnOff", malformed
+        case discoverResponse = "Discover.Response", response = "Response", state = "StateReport", error = "ErrorResponse", power = "powerState", connectivity = "connectivity", on = "TurnOn", off = "TurnOff", malformed
+    }
+    enum EndpointHealth:String {
+        case ok = "OK", unreachable = "UNREACHABLE"
     }
 }
 
@@ -117,15 +120,6 @@ enum AlexaDisplayCategories: String, Codable {
     case ACTIVITY_TRIGGER, CAMERA, DOOR, LIGHT, MICROWAVE, OTHER, SCENE_TRIGGER, SMARTLOCK, SMARTPLUG, SPEAKER, SWITCH, TEMPERATURE_SENSOR, THERMOSTAT, TV
 }
 
-
-struct AlexaDiscoveryRequest: Codable {
-    let directive:Directive
-    struct Directive: Codable {
-        let header: AlexaHeader
-        let payload: AlexaPayload
-    }
-}
-
 struct AlexaDiscoveryResponse: Codable, Content, ResponseEncodable {
     let event:Event
     
@@ -151,20 +145,40 @@ struct AlexaDiscoveryResponse: Codable, Content, ResponseEncodable {
 }
 
 // Directive structs
-struct AlexaMessage:Content {
+struct AlexaMessage: Decodable {
     let directive:AlexaDirective
 }
 
-struct AlexaDirective:Codable {
+struct AlexaDirective:Decodable {
     let header:AlexaHeader
     let payload:AlexaPayload
     let endpoint:AlexaEndpoint?
 }
 
 //event response structures
-struct AlexaResponse: Codable, Content, ResponseEncodable {
+struct AlexaPowerControllerResponse: Codable, Content, ResponseEncodable {
     let context: AlexaContext
     let event: AlexaEvent
+    
+    init (requestedVia: AlexaMessage, fireplaceState: ImpFireplaceStatus ) throws {
+        var props:[AlexaProperty]
+        switch fireplaceState.value {
+            case .some(let val):
+                props = [
+                    AlexaProperty(namespace: .power, name: .power, value: val.rawValue, time: Date(), uncertainty: 500),
+                    AlexaProperty(endpointHealth: .ok)]
+            case .none:
+                props = [AlexaProperty(endpointHealth: .unreachable)]
+        }
+        var header = requestedVia.directive.header
+        header.name = AlexaEnvironment.Name.response
+        header.namespace = AlexaEnvironment.Namespace.basic
+        guard let endpoint = requestedVia.directive.endpoint else {
+            throw AlexaError(.couldNotCreateResponse, file: #file, function: #function, line: #line)
+        }
+        context = AlexaContext(properties: props)
+        event = AlexaEvent(header: header, endpoint: endpoint, payload: AlexaPayload())
+    }
 }
 
 struct AlexaTestErr: Codable, Content, ResponseEncodable {
@@ -179,8 +193,8 @@ struct AlexaEvent:Codable {
 
 // Common structs
 struct AlexaHeader:Codable {
-    let namespace: AlexaEnvironment.Namespace
-    let name:AlexaEnvironment.Name
+    var namespace: AlexaEnvironment.Namespace
+    var name:AlexaEnvironment.Name
     let payloadVersion:AlexaEnvironment.PayloadVersion
     let messageId:String
     let correlationToken:String?
@@ -290,7 +304,11 @@ struct AlexaScope:Codable {
 }
 
 struct AlexaContext:Codable {
-    let properties: [AlexaProperty]?
+    var properties: [AlexaProperty]?
+    
+    init (properties: [AlexaProperty]?) {
+        self.properties = properties
+    }
 }
 
 struct AlexaEndpoint:Codable {
@@ -298,15 +316,25 @@ struct AlexaEndpoint:Codable {
     let scope:AlexaScope?
     let cookie: [String:String]?
     
-    init (using id: String, scope: AlexaScope? = nil, cookie: [String:String]? = nil) {
+    init (endpointId id: String, scope: AlexaScope? = nil, cookie: [String:String]? = nil) {
         endpointId = id
         self.scope = scope
         self.cookie = cookie
     }
     
-    init (useId id: String, accessToken token: String) {
+    init (endpointId id: String, accessToken token: String) {
         endpointId = id
         scope = AlexaScope(token: token)
+        cookie = nil
+    }
+    
+    init? (directive: AlexaDirective) {
+        guard
+            let ep = directive.endpoint,
+            let scp = ep.scope
+        else {return nil}
+        endpointId = ep.endpointId
+        scope = scp
         cookie = nil
     }
 }
@@ -326,18 +354,15 @@ struct AlexaProperty: Codable {
         uncertaintyInMilliseconds = uncertainty ?? 200
     }
     
-    init (endpointHealth: EndpointHealth) {
+    init (endpointHealth: AlexaEnvironment.EndpointHealth, uncertainty: Int? = nil) {
         namespace = .health
         name = AlexaEnvironment.Name.connectivity
         value = endpointHealth.rawValue
         timeOfSample = Date().iso8601
-        uncertaintyInMilliseconds = 200
+        uncertaintyInMilliseconds = uncertainty ?? 60000
         
     }
-    
-    enum EndpointHealth:String {
-        case ok = "OK", unreachable = "UNREACHABLE"
-    }
+
     
     enum Interface: String {
         case power = "Alexa.PowerController", health = "Alexa.EndpointHealth"
@@ -417,6 +442,14 @@ extension AlexaProperty { //decoding strategy
     }
 }
 
+
+//struct AlexaFireplaceStatus: Codable, Content { //for communication to Alexa
+//    let status:Status
+//    enum Status: String, Codable {
+//        case ON, OFF, NotAvailable
+//    }
+//}
+
 //Error structs
 
 
@@ -444,9 +477,15 @@ enum AlexaErrorValue: String {
 
 struct AlexaErrorResponse: Codable, Content, ResponseEncodable {
     var event: AlexaEvent
-
-    init(msgId: String, corrToken cToken: String?, endpointId epId: String, accessToken aToken: String, errType eType: AlexaErrorValue, message msg: String) {
-    self.event = AlexaEvent(header: AlexaHeader(namespace: .basic, name: .error, payloadVer: .latest, msgId: msgId, corrToken: cToken), endpoint: AlexaEndpoint(useId: epId, accessToken: aToken), payload: AlexaPayload.init(err: eType, reason: msg))
+    init (requestedVia: AlexaMessage, errType eType: AlexaErrorValue, message msg: String) throws {
+        var header = requestedVia.directive.header
+        header.name = AlexaEnvironment.Name.error
+        header.namespace = AlexaEnvironment.Namespace.basic
+        guard let endpoint = requestedVia.directive.endpoint else {
+            throw AlexaError(.couldNotCreateResponse, file: #file, function: #function, line: #line)
+        }
+        let payload = AlexaPayload.init(err: eType, reason: msg)
+        event = AlexaEvent(header: header, endpoint: endpoint, payload: payload)
     }
     
     init(event: AlexaEvent) {
@@ -454,11 +493,67 @@ struct AlexaErrorResponse: Codable, Content, ResponseEncodable {
     }
 }
 
-struct AlexaReportState: Codable {
-    var directive: AlexaDirective
+struct AlexaStateReport: Codable, Content, ResponseEncodable {
+    var context: AlexaContext
+    var event: AlexaEvent
+    
+    init? (forFireplace fireplace: Fireplace, stateRequest: AlexaMessage) {
+        guard
+            let id = fireplace.id?.uuidString,
+            let cToken = stateRequest.directive.header.correlationToken,
+            let aToken = stateRequest.directive.endpoint?.scope?.token
+            else {return nil}
+        let msgId = stateRequest.directive.header.messageId
+        let header = AlexaHeader(namespace: .basic, name: .state, payloadVer: .latest, msgId: msgId, corrToken: cToken)
+        let endpoint = AlexaEndpoint(endpointId: id, accessToken: aToken)
+        let payload = AlexaPayload()
+        event = AlexaEvent(header: header, endpoint: endpoint, payload: payload)
+        var properties:[AlexaProperty]
+        switch fireplace.status {
+            case .some(let val):
+                properties = [
+                    AlexaProperty(endpointHealth: .ok),
+                    AlexaProperty(namespace: .power, name: .power, value: val, time: Date(), uncertainty: fireplace.uncertainty() ?? 60000)
+                ]
+            case .none:
+                properties = [
+                    AlexaProperty(endpointHealth: .unreachable)
+                ]
+        }
+        context = AlexaContext(properties: properties)
+    }
+    
+    init? (_ fpUuid: String, stateRequest: AlexaMessage) {
+        guard
+            let cToken = stateRequest.directive.header.correlationToken,
+            let aToken = stateRequest.directive.endpoint?.scope?.token
+            else {return nil}
+        let msgId = stateRequest.directive.header.messageId
+        let header = AlexaHeader(namespace: .basic, name: .response, payloadVer: .latest, msgId: msgId, corrToken: cToken)
+        let endpoint = AlexaEndpoint(endpointId: fpUuid, accessToken: aToken)
+        let payload = AlexaPayload()
+        event = AlexaEvent(header: header, endpoint: endpoint, payload: payload)
+        context = AlexaContext(properties: [])
+    }
+    
+    mutating func updateProperties (fireplaceStatus: ImpFireplaceStatus) {
+        switch fireplaceStatus.ack {
+        case .acceptedOff:
+            context.properties = [
+                AlexaProperty(endpointHealth: .ok, uncertainty: fireplaceStatus.uncertaintyInMilliseconds),
+                AlexaProperty(namespace: .power, name: .power, value: ImpFireplaceStatus.ValueMessage.OFF.rawValue, time: Date(), uncertainty: fireplaceStatus.uncertaintyInMilliseconds)
+            ]
+        case .acceptedOn:
+            context.properties = [
+                AlexaProperty(endpointHealth: .ok, uncertainty: fireplaceStatus.uncertaintyInMilliseconds),
+                AlexaProperty(namespace: .power, name: .power, value: ImpFireplaceStatus.ValueMessage.ON.rawValue, time: Date(), uncertainty: fireplaceStatus.uncertaintyInMilliseconds)
+            ]
+        default:
+            context.properties = [AlexaProperty(endpointHealth: .unreachable)]
+        }
+    return
+    }
 }
-
-
 
 extension Formatter {
     static let iso8601: DateFormatter = {

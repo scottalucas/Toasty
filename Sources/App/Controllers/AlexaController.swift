@@ -13,7 +13,7 @@ struct AlexaController: RouteCollection {
         
         func discoveryHandler (_ req: Request) throws -> Future<Response> {
             guard
-                let discoveryRequest:AlexaDiscoveryRequest = try? req.content.syncDecode(AlexaDiscoveryRequest.self),
+                let discoveryRequest:AlexaMessage = try? req.content.syncDecode(AlexaMessage.self),
                 let userRequestToken = discoveryRequest.directive.payload.scope?.token
                 else {
                     logger.error("Failed to decode Alexa discovery request.")
@@ -21,7 +21,7 @@ struct AlexaController: RouteCollection {
             }
             
             let msgId = discoveryRequest.directive.header.messageId
-            let msgJSON = req.http.body.debugDescription
+//            let msgJSON = req.http.body.debugDescription
 //            logger.debug("Request in discovery handler: \(req.debugDescription)")
 //            logger.debug("JSON in discovery hander: \(msgJSON)")
             
@@ -33,7 +33,7 @@ struct AlexaController: RouteCollection {
                 }.catchFlatMap { error in
                     switch error {
                         case let err as ToastyError:
-                            logger.error(err.extendedDescription)
+                            logger.error(err.localizedDescription)
                         default:
                             logger.error(error.localizedDescription)
                     }
@@ -52,16 +52,13 @@ struct AlexaController: RouteCollection {
                         throw AlexaError(.couldNotDecodePowerControllerDirective, file: #file, function: #function, line: #line)
                 }
                 let userRequestToken = scope.token
-                let correlationToken = inboundMessage.directive.header.correlationToken
-                let messageId = inboundMessage.directive.header.messageId
-                
                 let action:ImpFireplaceAction
                 do {
                     action = try ImpFireplaceAction(action: inboundMessage.directive.header.name.rawValue)
                 } catch {
                     let error = ImpError.init(.fireplaceUnavailable, file: #file, function: #function, line: #line)
                     do {
-                        return try AlexaErrorResponse(msgId: messageId, corrToken: correlationToken, endpointId: endpoint.endpointId, accessToken: userRequestToken, errType: .invalidDirective, message: error.extendedDescription)
+                        return try AlexaErrorResponse(requestedVia: inboundMessage, errType: .invalidDirective, message: error.localizedDescription)
                             .encode(for: req)
                     } catch {
                         throw error
@@ -73,7 +70,7 @@ struct AlexaController: RouteCollection {
                     else {
                         do {
                             let error = AlexaError(.couldNotRetrieveFireplace)
-                            return try AlexaErrorResponse(msgId: messageId, corrToken: correlationToken, endpointId: endpoint.endpointId, accessToken: userRequestToken, errType: .invalidDirective, message: error.extendedDescription)
+                            return try AlexaErrorResponse(requestedVia: inboundMessage, errType: .invalidDirective, message: error.localizedDescription)
                                 .encode(for: req)
                         } catch {
                             throw error
@@ -83,57 +80,87 @@ struct AlexaController: RouteCollection {
                 return try User.getAmazonAccount(usingToken: userRequestToken, on: req)
                     .flatMap(to: [Fireplace].self) { account in
                         return try AlexaController.getAssociatedFireplaces(using: account, on: req)
-                    }.flatMap(to: ImpFireplaceAck.self) { fireplaces in
+                    }.flatMap(to: ImpFireplaceStatus.self) { fireplaces in
                         let optFireplace = fireplaces
                             .filter { $0.id != nil }
                             .filter { $0.id! == targetFireplaceId }
                             .first
                         guard let fireplace = optFireplace else {throw AlexaError(.childFireplacesNotFound, file: #file, function: #function, line: #line)}
-                        return FireplaceManagementController.action(action, executeOn: fireplace.controlUrl, on: req)
+                        return try FireplaceManagementController.action(action, executeOn: fireplace, on: req)
                     }.flatMap (to: Response.self) { impStatus in
                         switch impStatus.ack {
                         case .acceptedOn, .acceptedOff:
-                            let props = [ AlexaProperty(namespace: .power, name: .power, value: impStatus.ack.rawValue, time: Date(), uncertainty: 500), AlexaProperty(endpointHealth: .ok)]
-                            let header = AlexaHeader(namespace: .basic, name: .response, payloadVer: .latest, msgId: messageId, corrToken: correlationToken)
-                            let scope = AlexaScope(token: userRequestToken)
-                            let endpoint = AlexaEndpoint(using: endpoint.endpointId, scope: scope, cookie: nil)
-                            return try AlexaResponse(context: AlexaContext(properties: props), event: AlexaEvent(header: header, endpoint: endpoint, payload: AlexaPayload()))
+                            return try AlexaPowerControllerResponse.init(requestedVia: inboundMessage, fireplaceState: impStatus)
                                 .encode(for: req)
                         case .notAvailable:
                             let err = ImpError(.fireplaceUnavailable, file: #file, function: #function, line: #line)
-                            return try AlexaErrorResponse(msgId: messageId, corrToken: correlationToken, endpointId: endpoint.endpointId, accessToken: userRequestToken, errType: .endpointUnreachable, message: err.extendedDescription)
+                            //need to also send a status report
+                            return try AlexaErrorResponse(requestedVia: inboundMessage, errType: .endpointUnreachable, message: err.localizedDescription)
                                 .encode(for: req)
                         case .rejected:
                             let err = ImpError(.operationNotSupported, file: #file, function: #function, line: #line)
-                            return try AlexaErrorResponse(msgId: messageId, corrToken: correlationToken, endpointId: endpoint.endpointId, accessToken: userRequestToken, errType: .invalidDirective, message: err.extendedDescription)
+                            //need to also send a status report
+                            return try AlexaErrorResponse(requestedVia: inboundMessage, errType: .invalidDirective, message: err.localizedDescription)
                                 .encode(for: req)
                         }
                     }.catchFlatMap { error in
                         switch error {
                         case let err as ImpError:
-                            return try AlexaErrorResponse(msgId: messageId, corrToken: correlationToken, endpointId: endpoint.endpointId, accessToken: userRequestToken, errType: .endpointUnreachable, message: err.extendedDescription)
+                            return try AlexaErrorResponse(requestedVia: inboundMessage, errType: .endpointUnreachable, message: err.localizedDescription)
                                 .encode(for: req)
                         case let err as LoginWithAmazonError:
-                            return try AlexaErrorResponse(msgId: messageId, corrToken: correlationToken, endpointId: endpoint.endpointId, accessToken: userRequestToken, errType: .invalidCredential, message: err.extendedDescription)
+                            return try AlexaErrorResponse(requestedVia: inboundMessage, errType: .invalidCredential, message: err.localizedDescription)
                                 .encode(for: req)
                         case let err as AlexaError:
-                            return try AlexaErrorResponse(msgId: messageId, corrToken: correlationToken, endpointId: endpoint.endpointId, accessToken: userRequestToken, errType: .invalidDirective, message: err.extendedDescription)
+                            return try AlexaErrorResponse(requestedVia: inboundMessage, errType: .invalidDirective, message: err.localizedDescription)
                                 .encode(for: req)
                         default:
-                            return try AlexaErrorResponse(msgId: messageId, corrToken: correlationToken, endpointId: endpoint.endpointId, accessToken: userRequestToken, errType: .invalidDirective, message: "The fireplace can't process your request right now.")
+                            return try AlexaErrorResponse(requestedVia: inboundMessage, errType: .invalidDirective, message: "The fireplace can't process your request right now.")
                                 .encode(for: req)
                         }
                 }
         }
        
         func reportStateHandler(_ req: Request) throws -> Future<Response> {
-            
+            guard
+                let stateReportRequest: AlexaMessage = try? req.content.syncDecode(AlexaMessage.self),
+                let endpointId = stateReportRequest.directive.endpoint?.endpointId,
+                let endpointUUID = UUID.init(endpointId)
+                else {
+                    let err = AlexaError(.couldNotDecodeStatusReport, file: #file, function: #function, line: #line)
+                    logger.error (err.localizedDescription)
+                    throw err
+            }
+            guard var finalReport = AlexaStateReport(endpointId, stateRequest: stateReportRequest) else {
+                let err = AlexaError(.couldNotDecodeStatusReport, file: #file, function: #function, line: #line)
+                logger.error (err.localizedDescription)
+                throw err
+            }
+            return try Fireplace.query(on: req)
+            .filter(\.id == endpointUUID)
+            .first()
+            .flatMap (to: ImpFireplaceStatus.self) { optFireplace in
+                guard let fireplace = optFireplace else {
+                    throw AlexaError.init(.couldNotDecodeStatusReport, file: #file, function: #function, line: #line)
+                }
+                guard let rpt = AlexaStateReport.init(forFireplace: fireplace, stateRequest: stateReportRequest) else {
+                    throw AlexaError(.couldNotDecodeStatusReport, file: #file, function: #function, line: #line)
+                }
+                finalReport = rpt
+                return try FireplaceManagementController.action(ImpFireplaceAction(action: .update), executeOn: fireplace, on: req)
+                }.flatMap (to: Response.self) { status in
+                    finalReport.updateProperties(fireplaceStatus: status)
+                    return try finalReport.encode(for: req)
+            }.catchFlatMap { error in
+                return try AlexaErrorResponse(requestedVia: stateReportRequest, errType: .invalidDirective, message: "The fireplace can't process your request right now.\n\(error.localizedDescription)")
+                        .encode(for: req)
+            }
         }
         
         alexaRoutes.get(use: helloHandler)
         alexaRoutes.post("Discovery", use: discoveryHandler)
-        alexaRoutes.get("Discovery", use: discoveryHandler)
-        alexaRoutes.get("ReportState", use: reportStateHandler)
+//        alexaRoutes.get("Discovery", use: discoveryHandler)
+        alexaRoutes.post("ReportState", use: reportStateHandler)
         alexaRoutes.post("PowerController", use: powerControllerHandler)
         }
         

@@ -75,4 +75,28 @@ struct AlexaJson {
     }
 }
 """
+    
+    static let stateReportReq = //param: accessToken, Fireplace UUID
+    """
+{
+"directive": {
+"header": {
+"namespace": "Alexa",
+"name": "ReportState",
+"payloadVersion": "3",
+"messageId": "1bd5d003-31b9-476f-ad03-71d471922820",
+"correlationToken": "dFMb0z+PgpgdDmluhJ1LddFvSqZ/jCc8ptlAKulUj90jSqg=="
+},
+"endpoint": {
+"endpointId": "%@",
+"cookie": {},
+"scope": {
+"type": "BearerToken",
+"token": "%@"
+}
+},
+"payload": {}
+}
+}
+"""
 }

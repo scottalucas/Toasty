@@ -14,12 +14,14 @@ struct AlexaError: Error, ToastyError {
     var line: Int?
     
     enum Category {
-        case couldNotDecodeDiscovery, couldNotRetrieveUserAccount, couldNotDecodePowerControllerDirective, couldNotDecodeProperty, couldNotDecode, couldNotEncode, didNotUnderstandFireplaceCommand, failedToLookupUser, noCorrespondingToastyAccount, childFireplacesNotFound, couldNotRetrieveFireplace, placeholderAccountNotFound, unableToCreateLWAScopeError, unknown
+        case couldNotDecodeDiscovery, couldNotRetrieveUserAccount, couldNotDecodePowerControllerDirective, couldNotDecodeProperty, couldNotDecode, couldNotEncode, didNotUnderstandFireplaceCommand, failedToLookupUser, noCorrespondingToastyAccount, childFireplacesNotFound, couldNotRetrieveFireplace, placeholderAccountNotFound, unableToCreateLWAScopeError, couldNotDecodeStatusReport, couldNotCreateResponse, unknown
     }
     var description:String {
         switch id {
         case .couldNotDecodeDiscovery:
             return "Could not decode Alexa discovery message."
+        case .couldNotDecodeStatusReport:
+            return "Could not decode status report from Alexa."
         case .couldNotRetrieveUserAccount:
             return "Could not retrieve user account."
         case .couldNotDecodePowerControllerDirective:
@@ -40,6 +42,8 @@ struct AlexaError: Error, ToastyError {
             return "Could not decode property value."
         case .didNotUnderstandFireplaceCommand:
             return "Did not understand fireplace action command."
+        case .couldNotCreateResponse:
+            return "Could not create a response to Alexa."
         case .unableToCreateLWAScopeError:
             return "Unable to create error for LWA scope response."
         case .couldNotRetrieveFireplace:
@@ -49,7 +53,7 @@ struct AlexaError: Error, ToastyError {
         }
     }
     
-    var extendedDescription: String {
+    var localizedDescription: String {
         var formatString: String = String(format: "\nAlexa Error description: %@", description)
         formatString.append((file != nil) ? String(format: "\n\tFile: %@", file!) : "")
         formatString.append((function != nil) ? String(format: "\n\tFunction: %@", function!) : "")
@@ -76,6 +80,8 @@ struct AlexaError: Error, ToastyError {
     }
 }
 
+struct teste: Error {}
+
 struct ImpError: Error, ToastyError {
     var id:Category
     var file: String?
@@ -84,7 +90,7 @@ struct ImpError: Error, ToastyError {
     
     enum Category {
 //        case badUrl, couldNotEncodeImpAction, couldNotDecodeImpResponse, couldNotDecodePowerControllerDirective, failedToEncodeResponse, failedToLookupUser, noCorrespondingToastyAccount, childFireplacesNotFound, unknown
-        case fireplaceUnavailable, fireplaceOffline, operationNotSupported, badUrl, unknown
+        case fireplaceUnavailable, fireplaceOffline, operationNotSupported, badUrl, couldNotEncodeImpAction, couldNotDecodeImpResponse, unknown
     }
     var description:String {
         switch id {
@@ -96,10 +102,10 @@ struct ImpError: Error, ToastyError {
             return "Fireplace does not support the requested operation."
         case .badUrl:
             return "The URL for the fireplace is not structured properly."
-//        case .couldNotEncodeImpAction:
-//            return "Failed to encode the Imp action into a format to send via http."
-//        case .couldNotDecodeImpResponse:
-//            return "The reponse from the fireplace could not be decoded."
+        case .couldNotEncodeImpAction:
+            return "Failed to encode the Imp action into a format to send via http."
+        case .couldNotDecodeImpResponse:
+            return "The reponse from the fireplace could not be decoded."
 //        case .couldNotDecodePowerControllerDirective:
 //            return "Could not decode instructions from Alexa."
 //        case .failedToEncodeResponse:
@@ -115,7 +121,7 @@ struct ImpError: Error, ToastyError {
         }
     }
     
-    var extendedDescription: String {
+    var localizedDescription: String {
         var formatString: String = String(format: "\nImp Error description: %@", description)
         formatString.append((file != nil) ? String(format: "\n\tFile: %@", file!) : "")
         formatString.append((function != nil) ? String(format: "\n\tFunction: %@", function!) : "")
@@ -186,7 +192,7 @@ struct LoginWithAmazonError: Error, ToastyError {
         }
     }
     
-    var extendedDescription: String {
+    var localizedDescription: String {
         var formatString: String = String(format: "\nLWA Error description: %@", description)
         formatString.append((file != nil) ? String(format: "\n\tFile: %@", file!) : "")
         formatString.append((function != nil) ? String(format: "\n\tFunction: %@", function!) : "")
@@ -226,5 +232,5 @@ protocol ToastyError {
     var file: String?  {get set}
     var function: String?  {get set}
     var line: Int?  {get set}
-    var extendedDescription: String {get}
+    var localizedDescription: String {get}
 }
