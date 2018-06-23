@@ -73,3 +73,16 @@ struct ENVVariables {
     static let lwaClientId:String = "LWACLIENTID"
     static let lwaClientSecret:String = "LWACLIENTSECRET"
 }
+
+protocol FireplaceConnectors {}
+
+extension FireplaceConnectors {
+    var shortSession:URLSession {
+        let sessionConfig = URLSessionConfiguration.default
+        sessionConfig.timeoutIntervalForRequest = 7.0
+        sessionConfig.timeoutIntervalForResource = 7.0
+        return URLSession(configuration: sessionConfig)
+    }
+
+}
+

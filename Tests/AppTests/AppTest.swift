@@ -46,32 +46,14 @@ final class FireplaceOnOffTests: XCTestCase {
         testAzAcct = try! AmazonAccount(with: prof, user: testUser!)!.save(on: db).wait()
         goodTestFp1 = try! Fireplace(power: .battery, imp: "https://agent.electricimp.com/2arZveArVIRJ", user: testUser!.id!, friendly: "test 1").save(on: db).wait()
         goodTestFp2 = try! Fireplace(power: .battery, imp: "https://agent.electricimp.com/7NjKoDqiOxi5", user: testUser!.id!, friendly: "test 1").save(on: db).wait()
-        badUrltestFp1 = try! Fireplace(power: .line, imp: "test2 url", user: testUser!.id!, friendly: "test 2").save(on: db).wait()
+        badUrltestFp1 = try! Fireplace(power: .line, imp: "https://httpstat.us/200?sleep=8000", user: testUser!.id!, friendly: "test 2").save(on: db).wait()
         _ = try! AlexaFireplace(childOf: goodTestFp1!, associatedWith: testAzAcct!)!.save(on: db).wait()
         _ = try! AlexaFireplace(childOf: goodTestFp2!, associatedWith: testAzAcct!)!.save(on: db).wait()
         _ = try! AlexaFireplace(childOf: badUrltestFp1!, associatedWith: testAzAcct!)!.save(on: db).wait()
         goodTestFireplaces = [goodTestFp1!, goodTestFp2!]
-        print ("""
-
-
-***********************************************************************
-****************TESTING UNDERWAY***************************************
-***********************************************************************
-
-
-""")
     }
 
     override func tearDown() {
-        print ("""
-
-
-***********************************************************************
-****************TESTING COMPLETE***************************************
-***********************************************************************
-
-
-""")
         try? app.runningServer?.close().wait()
     }
     
@@ -95,18 +77,16 @@ final class FireplaceOnOffTests: XCTestCase {
     
     func testFpFailResponse () {
         for fireplace in goodTestFireplaces! {
-            print ("\n\n\n\n********************MALFORMED IMP ACTION*****************\n")
             try! fpFailResponse(action: "malformed", accessToken: "test", fireplace: fireplace)
-            print ("\n\n\n\n********************MALFORMED ACCESS TOKEN*****************\n")
             try! fpFailResponse(action: "TurnOff", accessToken: "testFail", fireplace: fireplace)
             
         }
-        print ("\n\n\n\n********************MALFORMED IMP URL*****************\n")
         try! fpFailResponse(action: "TurnOff", accessToken: "test", fireplace: badUrltestFp1!)
 
     }
     
     func fpDiscoverySuccess (accessToken: String) throws {
+        print (String(format: Banners.start, #function))
         let db = try! app.newConnection(to: .psql).wait()
         defer { db.close() } //closes the database when out of scope no matter what.
         let myContainer = try! app.client().container
@@ -115,41 +95,50 @@ final class FireplaceOnOffTests: XCTestCase {
         let expectedFps = try! AlexaController.getAssociatedFireplaces(using: azAcct, on: myReq).wait()
         let msgId:String = TestHelpers.randomAlphaNumericString(length: 10)
         let jsonData = String(format: AlexaJson.discoveryReq, msgId, accessToken).data(using: .utf8)! //param: msgId, token
-        let res = try app.client().post("http://192.168.1.111:8080/Alexa/Discovery") {newPost in
+        let fpReplyExpectation = XCTestExpectation(description: String(format: Banners.fail, "Did not respond within 8 seconds.", #function, #line))
+        try! app.client().post("http://192.168.1.111:8080/Alexa/Discovery") {newPost in
             newPost.http.body = HTTPBody(data: jsonData)
             newPost.http.headers.add(name: .contentType, value: "application/json")
-            }
-            .wait()
-        let responseJson = (res.http.body).data!
-        let responseJsonString = String.init(data: responseJson, encoding: .utf8)
-        XCTAssert(res.http.status.code == 200, "Returned HTTP status code \(res.http.status.code), should be 200.")
-        XCTAssertTrue(jsonValidator.analyze(responseJsonString!), "Invalid JSON.")
-        guard let discoveryResponse:AlexaDiscoveryResponse = try? res.content.syncDecode(AlexaDiscoveryResponse.self) else {
-            XCTFail("Could not decode response as AlexaDiscoveryResponse.")
-                print("\n\n\(String.init(data: responseJson, encoding: .utf8) ?? "Could not stringify response.")\n\n")
-                return
+            }.map () { res in
+                fpReplyExpectation.fulfill()
+                let responseJson = (res.http.body).data!
+                let responseJsonString = String.init(data: responseJson, encoding: .utf8)
+                XCTAssert(res.http.status.code == 200, String(format: Banners.fail, "Returned HTTP status code \(res.http.status.code), should be 200."))
+                XCTAssertTrue(self.jsonValidator.analyze(responseJsonString!), String(format: Banners.fail, "Invalid JSON.", #function, #line))
+                guard let discoveryResponse:AlexaDiscoveryResponse = try? res.content.syncDecode(AlexaDiscoveryResponse.self) else {
+                    XCTFail(String(format: Banners.fail, "Could not decode response as AlexaDiscoveryResponse.", #function, #line))
+                        print("\n\n\(String.init(data: responseJson, encoding: .utf8) ?? "Could not stringify response.")\n\n")
+                        return
+                }
+                let header = discoveryResponse.event.header
+                let endpoints = discoveryResponse.event.payload.endpoints
+                XCTAssert(header.namespace == .discovery, String(format: Banners.fail, "Header namespace incorrect.", #function, #line))
+                XCTAssert(header.name == .discoverResponse, String(format: Banners.fail, "Header namespace incorrect.", #function, #line))
+                XCTAssert(header.payloadVersion == .latest, String(format: Banners.fail, "Header namespace incorrect.", #function, #line))
+                XCTAssert(header.messageId == msgId, String(format: Banners.fail, "Message ID incorrect.", #function, #line))
+                for discoveredFireplace in endpoints {
+                    let endpointId = discoveredFireplace.endpointId
+                    let expectedFps = expectedFps.filter { $0.id! == endpointId }
+                    XCTAssert(expectedFps.count != 0, String(format: Banners.fail, "No matching fireplaces found.", #function, #line))
+                    XCTAssert(expectedFps.count == 1, String(format: Banners.fail, "Multiple fireplaces found.", #function, #line))
+                    guard let expectedFp = expectedFps.first else { XCTFail(String(format: Banners.fail, "Matching fireplace is nil.", #function, #line)); return }
+                    try! expectedFp.alexaFireplaces
+                        .query(on: db)
+                        .all()
+                        .map () { associatedAlexaFps in
+                            XCTAssert(associatedAlexaFps.count == 1, String(format: Banners.fail, "Incorrect number of associated Alexa fireplaces.", #function, #line))
+                            XCTAssert(discoveredFireplace.manufacturerName == FireplaceConstants.manufacturerName, String(format: Banners.fail, "Mfg name mismatch", #function, #line))
+                            XCTAssert(discoveredFireplace.description == FireplaceConstants.description, String(format: Banners.fail, "Description mismatch", #function, #line))
+                            XCTAssert(discoveredFireplace.displayCategories == FireplaceConstants.displayCategories, String(format: Banners.fail, "Display category mismatch.", #function, #line))
+                        }
+                    }
         }
-        let header = discoveryResponse.event.header
-        let endpoints = discoveryResponse.event.payload.endpoints
-        XCTAssert(header.namespace == .discovery, "Header namespace incorrect.")
-        XCTAssert(header.name == .discoverResponse, "Header namespace incorrect.")
-        XCTAssert(header.payloadVersion == .latest, "Header namespace incorrect.")
-        XCTAssert(header.messageId == msgId, "Message ID incorrect.")
-        for discoveredFireplace in endpoints {
-            let endpointId = discoveredFireplace.endpointId
-            let expectedFps = expectedFps.filter { $0.id! == endpointId }
-            XCTAssert(expectedFps.count != 0, "No matching fireplaces found.")
-            XCTAssert(expectedFps.count == 1, "Multiple fireplaces found.")
-            guard let expectedFp = expectedFps.first else { XCTFail("Matching fireplace is nil."); return }
-            let associatedAlexaFps = try! expectedFp.alexaFireplaces.query(on: db).all().wait()
-            XCTAssert(associatedAlexaFps.count == 1, "Incorrect number of associated Alexa fireplaces.")
-            XCTAssert(discoveredFireplace.manufacturerName == FireplaceConstants.manufacturerName, "Mfg name mismatch")
-            XCTAssert(discoveredFireplace.description == FireplaceConstants.description, "Description mismatch")
-            XCTAssert(discoveredFireplace.displayCategories == FireplaceConstants.displayCategories, "Display category mismatch.")
-        }
+        wait(for: [fpReplyExpectation], timeout: 8.0)
+        print (String(format: Banners.finish, #function))
     }
     
     func fpSuccessResponse(action: String, fireplace: Fireplace) throws {
+        print (String(format: Banners.start, #function))
         let db = try! app.newConnection(to: .psql).wait()
         defer { db.close() }
         let endpointId = fireplace.id
@@ -158,45 +147,59 @@ final class FireplaceOnOffTests: XCTestCase {
         let accToken:String = "test"
         let json = String(format: AlexaJson.fpOnOffReq, action, msgId, corrToken, accToken, endpointId!.uuidString)// param: OnOff, messageID, correlationToken, AccessToken, enpoint ID
         let jsonData = json.data(using: .utf8)!
-        let res = try app.client().post("http://192.168.1.111:8080/Alexa/PowerController") {newPost in
+        let fpReplyExpectation = XCTestExpectation(description: String(format: Banners.fail, "Did not respond within 8 seconds.", #function, #line))
+        try app.client().post("http://192.168.1.111:8080/Alexa/PowerController") {newPost in
                 newPost.http.body = HTTPBody(data: jsonData)
                 newPost.http.headers.add(name: .contentType, value: "application/json")
+        }.map() { res in
+    //        print (res.http.status)
+            fpReplyExpectation.fulfill()
+            let responseJson = (res.http.body).data!
+            let responseJsonString = String.init(data: responseJson, encoding: .utf8)
+            XCTAssertTrue(self.jsonValidator.analyze(responseJsonString!), String(format: Banners.fail, "JSON did not validate.", #function, #line))
+            XCTAssert(res.http.status.code == 200, String(format: Banners.fail, "Returned HTTP status code other than 200.", #function, #line))
+            guard let responseToAlexa:AlexaPowerControllerResponse = try? res.content.syncDecode(AlexaPowerControllerResponse.self) else {
+                XCTFail(String(format: Banners.fail, "Could not decode response as AlexaPowerControllerResponse.", #function, #line))
+                print(responseJsonString ?? "No JSON to print after decode failure, test \(#function), line \(#line).")
+                return
             }
-            .wait()
-        print (res.http.status)
-        let responseJson = (res.http.body).data!
-        let responseJsonString = String.init(data: responseJson, encoding: .utf8)
-        XCTAssertTrue(jsonValidator.analyze(responseJsonString!), "JSON did not validate.")
-        XCTAssert(res.http.status.code == 200, "Returned HTTP status code other than 200.")
-        guard let responseToAlexa:AlexaPowerControllerResponse = try? res.content.syncDecode(AlexaPowerControllerResponse.self) else {
-            XCTFail("Could not decode response as AlexaPowerControllerResponse.")
-            print(responseJsonString ?? "No JSON to print after decode failure, test \(#function), line \(#line).")
-            return
+            let powerProp = responseToAlexa.context.properties?.first { $0.namespace == .power}
+            let healthProp = responseToAlexa.context.properties?.first { $0.namespace == .health }
+            let header = responseToAlexa.event.header
+            let endpoint = responseToAlexa.event.endpoint
+            let scope = endpoint.scope
+            XCTAssertNotNil(powerProp, String(format: Banners.fail, "Power property not found.", #function, #line))
+            XCTAssertNotNil(healthProp, String(format: Banners.fail, "Health property not found.", #function, #line))
+            XCTAssert(powerProp!.name == .power, String(format: Banners.fail, "Power property name not correct, sending \(powerProp!.name)", #function, #line))
+            XCTAssert(healthProp!.name == .connectivity, String(format: Banners.fail, "Health property name not correct, sending \(healthProp!.name).", #function, #line))
+            XCTAssert(powerProp!.value == ((action == "TurnOn") ? "ON" : "OFF"), String(format: Banners.fail, "Power property value not correct, sending \(powerProp!.value).", #function, #line))
+            XCTAssert(healthProp!.value == "OK", String(format: Banners.fail, "Power property value not correct sending \(healthProp!.value)", #function, #line))
+            XCTAssert(header.namespace == .basic, String(format: Banners.fail, "Header namespace incorrect.", #function, #line))
+            XCTAssert(header.name == .response, String(format: Banners.fail, "Header namespace incorrect.", #function, #line))
+            XCTAssert(header.payloadVersion == .latest, String(format: Banners.fail, "Header namespace incorrect.", #function, #line))
+            XCTAssertNotNil(header.correlationToken!, String(format: Banners.fail, "Correlation token is nil.", #function, #line))
+            XCTAssert(header.correlationToken! == corrToken, String(format: Banners.fail, "Correlation token incorrect.", #function, #line))
+            XCTAssert(header.messageId == msgId, String(format: Banners.fail, "Message ID incorrect.", #function, #line))
+            XCTAssertNotNil(scope!, String(format: Banners.fail, "Scope is not present.", #function, #line))
+            XCTAssert(scope!.type == "BearerToken", String(format: Banners.fail, "Bearer token type incorrect.", #function, #line))
+            XCTAssert(scope!.token == accToken, String(format: Banners.fail, "Access token incorrect.", #function, #line))
+            XCTAssert(endpoint.endpointId == endpointId!.uuidString, String(format: Banners.fail, "Endpoint ID incorrect.", #function, #line))
         }
-        let powerProp = responseToAlexa.context.properties?.first { $0.namespace == .power}
-        let healthProp = responseToAlexa.context.properties?.first { $0.namespace == .health }
-        let header = responseToAlexa.event.header
-        let endpoint = responseToAlexa.event.endpoint
-        let scope = endpoint.scope
-        XCTAssertNotNil(powerProp, "Power property not found.")
-        XCTAssertNotNil(healthProp, "Health property not found.")
-        XCTAssert(powerProp!.name == .power, "Power property name not correct, sending \(powerProp!.name)")
-        XCTAssert(healthProp!.name == .connectivity, "Health property name not correct, sending \(healthProp!.name).")
-        XCTAssert(powerProp!.value == ((action == "TurnOn") ? "ON" : "OFF"), "Power property value not correct, sending \(powerProp!.value).")
-        XCTAssert(healthProp!.value == "OK", "Power property value not correct sending \(healthProp!.value)")
-        XCTAssert(header.namespace == .basic, "Header namespace incorrect.")
-        XCTAssert(header.name == .response, "Header namespace incorrect.")
-        XCTAssert(header.payloadVersion == .latest, "Header namespace incorrect.")
-        XCTAssertNotNil(header.correlationToken!, "Correlation token is nil.")
-        XCTAssert(header.correlationToken! == corrToken, "Correlation token incorrect.")
-        XCTAssert(header.messageId == msgId, "Message ID incorrect.")
-        XCTAssertNotNil(scope!, "Scope is not present.")
-        XCTAssert(scope!.type == "BearerToken", "Bearer token type incorrect.")
-        XCTAssert(scope!.token == accToken, "Access token incorrect.")
-        XCTAssert(endpoint.endpointId == endpointId!.uuidString, "Endpoint ID incorrect.")
+        wait(for: [fpReplyExpectation], timeout: 8.0)
+        print (String(format: Banners.finish, #function))
     }
     
     func fpFailResponse(action: String, accessToken: String, fireplace: Fireplace) throws {
+        let testUrl = fireplace.controlUrl
+        print (String(format: Banners.start, #function))
+        print ("""
+
+        Action: \(action)
+        Access token: \(accessToken)
+        Fireplace: \(fireplace)
+        Test URL: \(testUrl)
+
+""")
         let db = try! app.newConnection(to: .psql).wait()
         defer { db.close() } //closes the database when out of scope no matter what.
         let endpointId = fireplace.id!
@@ -205,52 +208,62 @@ final class FireplaceOnOffTests: XCTestCase {
         let accToken:String = accessToken
         let json = String(format: AlexaJson.fpOnOffReq, action, msgId, corrToken, accToken, endpointId.uuidString)// param: OnOff, messageID, correlationToken, AccessToken, enpoint ID
         let jsonData = json.data(using: .utf8)!
-        let res = try app.client().post("http://192.168.1.111:8080/Alexa/PowerController") {newPost in
+        let fpReplyExpectation = XCTestExpectation(description: String(format: Banners.fail, "Did not respond within 8 seconds.", #function, #line))
+        try app.client().post("http://192.168.1.111:8080/Alexa/PowerController") {newPost in
             newPost.http.body = HTTPBody(data: jsonData)
             newPost.http.headers.add(name: .contentType, value: "application/json")
-            }
-            .wait()
-        let responseJson = (res.http.body).data!
-        let responseJsonString = String.init(data: responseJson, encoding: .utf8)
-        XCTAssert(res.http.status.code == 200, "Returned HTTP status code \(res.http.status.code), should be 200.")
-        XCTAssertTrue(jsonValidator.analyze(responseJsonString!), "Invalid JSON.")
-        guard let responseToAlexa:AlexaErrorResponse = try? res.content.syncDecode(AlexaErrorResponse.self) else {
-            XCTFail("Could not decode response as AlexaErrorResponse.")
-            print(responseJsonString ?? "No JSON to print after decode failure, test \(#function), line \(#line).")
-            return
-        }
-        let header = responseToAlexa.event.header
-        let endpoint = responseToAlexa.event.endpoint
-        let scope = endpoint.scope
-        let payload = responseToAlexa.event.payload
-        XCTAssertNotNil(scope!, "Scope property not found.")
-//        XCTAssert(healthProp!.value == "OK", "Power property value not correct sending \(healthProp!.value)")
-        XCTAssert(header.namespace == .basic, "Header namespace incorrect.")
-        XCTAssert(header.name == .error, "Header namespace incorrect.")
-        XCTAssert(header.payloadVersion == .latest, "Header namespace incorrect.")
-        XCTAssertNotNil(header.correlationToken!, "Correlation token is nil.")
-        XCTAssert(header.correlationToken! == corrToken, "Correlation token incorrect.")
-        XCTAssert(header.messageId == msgId, "Message ID incorrect.")
-        XCTAssert(scope!.type == "BearerToken", "Bearer token type incorrect.")
-        XCTAssert(scope!.token == accToken, "Access token incorrect.")
-        XCTAssert(endpoint.endpointId == endpointId.uuidString, "Endpoint ID incorrect.")
-        XCTAssertNotNil(payload.type, "No payload type.")
-        XCTAssertNotNil(payload.message, "No error message.")
+            }.map () { res in
+                let responseJson = (res.http.body).data!
+                let responseJsonString = String.init(data: responseJson, encoding: .utf8)
+                XCTAssert(res.http.status.code == 200, String(format: Banners.fail, "Returned HTTP status code \(res.http.status.code), should be 200.", #function, #line))
+                        XCTAssertTrue(self.jsonValidator.analyze(responseJsonString!), "Invalid JSON.")
+                guard
+                    let responseToAlexa = try? res.content.syncDecode(AlexaPowerControllerResponse.self),
+                    let properties = responseToAlexa.context.properties
+                else {
+                    XCTFail(String(format: Banners.fail, "Could not decode response as PowerControllerResponse.", #function, #line))
+                    print(responseJsonString ?? "No JSON to print after decode failure, test \(#function), line \(#line).")
+                    return
+                }
+                let header = responseToAlexa.event.header
+                let endpoint = responseToAlexa.event.endpoint
+                let scope = endpoint.scope
+                let payload = responseToAlexa.event.payload
+
+                XCTAssertEqual(properties.count, 1, "Incorrect number of properties.")
+                XCTAssertNotNil(scope!, String(format: Banners.fail, "Scope property not found.", #function, #line))
+                XCTAssert(properties[0].value == "UNREACHABLE", "Power property value not correct sending \(properties[0].value)")
+                XCTAssert(header.namespace == .basic, String(format: Banners.fail, "Header namespace incorrect.", #function, #line))
+                XCTAssert(header.name == .response, String(format: Banners.fail, "Header name incorrect.", #function, #line))
+                XCTAssert(header.payloadVersion == .latest, String(format: Banners.fail, "Payload version incorrect.", #function, #line))
+                XCTAssert(header.correlationToken! == corrToken, String(format: Banners.fail, "Correlation token incorrect.", #function, #line))
+                XCTAssert(header.messageId == msgId, String(format: Banners.fail, "Message ID incorrect.", #function, #line))
+                XCTAssert(scope!.type == "BearerToken", String(format: Banners.fail, "Bearer token type incorrect.", #function, #line))
+                XCTAssert(endpoint.endpointId == endpointId.uuidString, String(format: Banners.fail, "Endpoint ID incorrect.", #function, #line))
+                XCTAssertNil(payload.type, String(format: Banners.fail, "No payload type.", #function, #line))
+                fpReplyExpectation.fulfill()
+}
+        wait(for: [fpReplyExpectation], timeout: 8.0)
+        print (String(format: Banners.finish, #function))
     }
     
     func statusReportSuccess(accessToken: String, fireplace: Fireplace) throws {
+        print (String(format: Banners.start, #function))
         let json = String(format: AlexaJson.stateReportReq, fireplace.id!.uuidString, accessToken)
         let jsonData = json.data(using: .utf8)!
-        let res = try! app.client().post("http://192.168.1.111:8080/Alexa/ReportState") {newPost in
+        let fpReplyExpectation = XCTestExpectation(description: String(format: Banners.fail, "Did not respond within 8 seconds.", #function, #line))
+        try! app.client().post("http://192.168.1.111:8080/Alexa/ReportState") {newPost in
             newPost.http.body = HTTPBody(data: jsonData)
             newPost.http.headers.add(name: .contentType, value: "application/json")
-            }
-            .wait()
-        let responseJson = (res.http.body).data!
-        let responseJsonString = String.init(data: responseJson, encoding: .utf8)
-        print (responseJsonString)
-        XCTAssert(res.http.status.code == 200, "Returned HTTP status code \(res.http.status.code), should be 200.")
-        XCTAssertTrue(jsonValidator.analyze(responseJsonString!), "Invalid JSON.")
+            }.map () {res in
+                fpReplyExpectation.fulfill()
+                let responseJson = (res.http.body).data!
+                let responseJsonString = String.init(data: responseJson, encoding: .utf8)
+                XCTAssert(res.http.status.code == 200, String(format: Banners.fail, "Returned HTTP status code \(res.http.status.code), should be 200.", #function, #line))
+                XCTAssertTrue(self.jsonValidator.analyze(responseJsonString!), String(format: Banners.fail, "Invalid JSON.", #function, #line))
+        }
+        wait(for: [fpReplyExpectation], timeout: 8.0)
+        print (String(format: Banners.finish, #function))
     }
 
     static let allTests = [

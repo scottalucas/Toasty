@@ -10,12 +10,17 @@ import Vapor
 import Fluent
 import FluentPostgreSQL
 
-struct FireplaceManagementController {
-    
+struct FireplaceManagementController: FireplaceConnectors {
+
     static func action (_ action: ImpFireplaceAction, executeOn fireplace: Fireplace, on req: Request) throws -> Future<ImpFireplaceStatus> {
+        let sessionConfig = URLSessionConfiguration.default
+        sessionConfig.timeoutIntervalForRequest = 7.0
+        sessionConfig.timeoutIntervalForResource = 7.0
+        let shortSession = URLSession(configuration: sessionConfig)
+        let client = FoundationClient.init(shortSession, on: req)
         guard let postUrl = URL.init(string: fireplace.controlUrl) else { throw ImpError(.badUrl, file: #file, function: #function, line: #line) }
         var finalStatus:ImpFireplaceStatus = ImpFireplaceStatus()
-        return try req.client().post(postUrl) { newPost in
+        return client.post(postUrl) { newPost in
             newPost.http.headers.add(name: .contentType, value: "application/json")
             try newPost.content.encode(action)
             }.flatMap(to: ImpFireplaceStatus.self) { res in

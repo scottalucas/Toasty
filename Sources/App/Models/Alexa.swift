@@ -63,13 +63,18 @@ struct AlexaEnvironment: Codable {
     enum EndpointHealth:String {
         case ok = "OK", unreachable = "UNREACHABLE"
     }
+    enum AlexaDisplayCategories: String, Codable {
+        case ACTIVITY_TRIGGER, CAMERA, DOOR, LIGHT, MICROWAVE, OTHER, SCENE_TRIGGER, SMARTLOCK, SMARTPLUG, SPEAKER, SWITCH, TEMPERATURE_SENSOR, THERMOSTAT, TV
+    }
 }
 
 struct FireplaceConstants: Codable { //set all fireplace constants here
     static let manufacturerName: String = "Toasty Fireplace"
     static let description: String = "Smart home fireplace controller"
-    static let displayCategories:[AlexaDisplayCategories] = [.OTHER]
+    static let displayCategories:[AlexaEnvironment.AlexaDisplayCategories] = [.OTHER]
 }
+
+
 
 // Discovery structs
 struct AlexaFireplaceEndpoint: Codable { //use this to create the discovery response
@@ -77,11 +82,11 @@ struct AlexaFireplaceEndpoint: Codable { //use this to create the discovery resp
     var manufacturerName:String = FireplaceConstants.manufacturerName
     var friendlyName:String
     var description:String = FireplaceConstants.description
-    var displayCategories:[AlexaDisplayCategories] = FireplaceConstants.displayCategories
+    var displayCategories:[AlexaEnvironment.AlexaDisplayCategories] = FireplaceConstants.displayCategories
     var cookie:[String:String]? = [:]
     var capabilities: [AlexaCapability] = [
         AlexaCapability.init(interface: .basic, version: .latest, supportedProps: nil, reported: nil, retrievable: nil),
-        AlexaCapability.init(interface: .power, version: .latest, supportedProps: [["name":"powerState"]], reported: false, retrievable: false)]
+        AlexaCapability.init(interface: .power, version: .latest, supportedProps: [["name":"powerState"]], reported: false, retrievable: true)]
     init? (from fireplace:Fireplace) {
         guard let id = fireplace.id else {return nil}
         endpointId = id
@@ -116,9 +121,6 @@ final class AlexaCapability: Codable {
     }
 }
 
-enum AlexaDisplayCategories: String, Codable {
-    case ACTIVITY_TRIGGER, CAMERA, DOOR, LIGHT, MICROWAVE, OTHER, SCENE_TRIGGER, SMARTLOCK, SMARTPLUG, SPEAKER, SWITCH, TEMPERATURE_SENSOR, THERMOSTAT, TV
-}
 
 struct AlexaDiscoveryResponse: Codable, Content, ResponseEncodable {
     let event:Event
@@ -248,9 +250,9 @@ extension AlexaHeader { //encoding strategy
 }
 
 struct AlexaPayload:Codable {
-    var scope:AlexaScope? = nil
-    var type:String? = nil
-    var message:String? = nil
+    var scope:AlexaScope?
+    var type:String?
+    var message:String?
     
     enum CodingKeys: String, CodingKey {
         case scope, type, message

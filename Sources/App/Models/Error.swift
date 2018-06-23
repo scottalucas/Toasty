@@ -234,3 +234,35 @@ protocol ToastyError {
     var line: Int?  {get set}
     var localizedDescription: String {get}
 }
+
+struct ErrorFormat {
+    static func forError(error: Error) -> String {
+        switch error {
+        case let err as ToastyError:
+            return String(format: """
+
+*********************** TOASTY ERROR ***************************
+%@
+********************** END TOASTY ERROR*************************
+
+""", err.localizedDescription)
+        case let err as NSError:
+            return String(format: """
+
+*********************** NSURL ERROR ****************************
+    Error description: %@
+    Failing url: %@
+********************** END NSURL ERROR**************************
+
+""", err.userInfo["NSLocalizedDescription"] as! CVarArg, err.userInfo["NSErrorFailingURLKey"] as! CVarArg)
+        default:
+            return String(format:
+"""
+*********************** GENERAL ERROR ****************************
+%@
+********************** END GENERAL ERROR**************************
+
+""", error.localizedDescription)
+        }
+    }
+}
