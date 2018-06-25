@@ -254,7 +254,8 @@ struct ErrorFormat {
     Failing url: %@
 ********************** END NSURL ERROR**************************
 
-""", err.userInfo["NSLocalizedDescription"] as! CVarArg, err.userInfo["NSErrorFailingURLKey"] as! CVarArg)
+""", "Can't see them", "Cause I can't figure it out.")
+
         default:
             return String(format:
 """
@@ -266,3 +267,7 @@ struct ErrorFormat {
         }
     }
 }
+
+
+//(err.userInfo["NSLocalizedDescription"] as! String?)!, (err.userInfo["NSErrorFailingURLKey"] as! String?)!)
+
