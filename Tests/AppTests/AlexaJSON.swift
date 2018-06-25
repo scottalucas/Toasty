@@ -1,4 +1,5 @@
 import Foundation
+import Vapor
 import JavaScriptCore
 
 public class Validator: NSObject {
@@ -7,7 +8,12 @@ public class Validator: NSObject {
     private let context: JSContext
     
     override init() {
-        let jsCode = try! String.init(contentsOfFile: "/Users/scott/Dropbox/Personal/Mad-Scientist/server/JSONValidator/Resources/Zschema.bundle.js")
+        let fm = FileManager()
+        let rootDirectory = DirectoryConfig.detect().workDir
+        let jsDirectory = "\(rootDirectory)/Public"
+        let files = try! fm.contentsOfDirectory(atPath: jsDirectory)
+//        let jsCode = try! String.init(contentsOfFile: "\(jsDirectory)Zschema.bundle.js")
+        let jsCode = try! String.init(data: fm.contents(atPath: "\(jsDirectory)/Zschema.bundle.js")!, encoding: .utf8) 
         self.context = JSContext(virtualMachine: self.vm)
         let nativeLog: @convention(block) (String) -> Void = { message in
             NSLog("JS Log: \(message)")
