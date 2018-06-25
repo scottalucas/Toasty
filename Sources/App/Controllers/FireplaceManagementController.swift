@@ -11,7 +11,16 @@ import Fluent
 import FluentPostgreSQL
 
 struct FireplaceManagementController: FireplaceConnectors {
-
+    func boot(router: Router) throws {
+        let impRoutes = router.grouped(ToastyAppRoutes.imp.root)
+        
+        func updateHandler (_ req: Request) -> String {
+            logger.debug ("Hit Imp controller.")
+            return "Hello! You got Imp controller!"
+        }
+        
+        impRoutes.post("Update", use: updateHandler)
+    }
     static func action (_ action: ImpFireplaceAction, executeOn fireplace: Fireplace, on req: Request) throws -> Future<ImpFireplaceStatus> {
         let sessionConfig = URLSessionConfiguration.default
         sessionConfig.timeoutIntervalForRequest = 7.0

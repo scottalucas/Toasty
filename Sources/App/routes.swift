@@ -32,6 +32,10 @@ struct ToastyAppRoutes {
         static let root = "/Alexa"
         static let discovery = "\(root)/Discovery"
     }
+    struct imp {
+        static let root = "/Imp"
+        static let update = "\(root)/Update"
+    }
     struct test {
         static let root = "/test"
         static let reset = "\(root)/reset"
