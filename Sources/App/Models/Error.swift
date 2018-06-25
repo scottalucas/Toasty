@@ -54,10 +54,10 @@ struct AlexaError: Error, ToastyError {
     }
     
     var localizedDescription: String {
-        var formatString: String = String(format: "\nAlexa Error description: %@", description)
-        formatString.append((file != nil) ? String(format: "\n\tFile: %@", file!) : "")
-        formatString.append((function != nil) ? String(format: "\n\tFunction: %@", function!) : "")
-        formatString.append((line != nil) ? String(format: "\n\tLine: %d", line!) : "")
+        var formatString = String("\nAlexa Error description: \(description)")
+        formatString.append((file != nil) ? String("\n\tFile: \(file!)") : "")
+        formatString.append((function != nil) ? String("\n\tFunction: \(function!)") : "")
+        formatString.append((line != nil) ? String("\n\tLine: \(line!)") : "")
         logger.error(formatString)
         return formatString
     }
@@ -122,10 +122,10 @@ struct ImpError: Error, ToastyError {
     }
     
     var localizedDescription: String {
-        var formatString: String = String(format: "\nImp Error description: %@", description)
-        formatString.append((file != nil) ? String(format: "\n\tFile: %@", file!) : "")
-        formatString.append((function != nil) ? String(format: "\n\tFunction: %@", function!) : "")
-        formatString.append((line != nil) ? String(format: "\n\tLine: %d", line!) : "")
+        var formatString: String = String("\nImp Error description: \(description)")
+        formatString.append((file != nil) ? String("\n\tFile: \(file!)") : "")
+        formatString.append((function != nil) ? String("\n\tFunction: \(function!)") : "")
+        formatString.append((line != nil) ? String("\n\tLine: \(line!)") : "")
         logger.error(formatString)
         return formatString
         }
@@ -239,35 +239,34 @@ struct ErrorFormat {
     static func forError(error: Error) -> String {
         switch error {
         case let err as ToastyError:
-            return String(format: """
+            return String("""
 
 *********************** TOASTY ERROR ***************************
-%@
+\(err.localizedDescription))
 ********************** END TOASTY ERROR*************************
 
-""", err.localizedDescription)
+""")
         case let err as NSError:
-            return String(format: """
+            return String("""
 
 *********************** NSURL ERROR ****************************
-    Error description: %@
-    Failing url: %@
+    Error description: \((err.userInfo["NSLocalizedDescription"] as? String))
+    Failing url: \(err.userInfo["NSErrorFailingURLKey"] as? String)
 ********************** END NSURL ERROR**************************
 
-""", "Can't see them", "Cause I can't figure it out.")
+""")
 
         default:
-            return String(format:
+            return String(
 """
 *********************** GENERAL ERROR ****************************
-%@
+\(error.localizedDescription)
 ********************** END GENERAL ERROR**************************
 
-""", error.localizedDescription)
+""")
         }
     }
 }
 
 
-//(err.userInfo["NSLocalizedDescription"] as! String?)!, (err.userInfo["NSErrorFailingURLKey"] as! String?)!)
 
