@@ -6,15 +6,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/vapor/vapor.git", from: "3.0.0-rc"),
         .package(url: "https://github.com/vapor/fluent-postgresql.git", from: "1.0.0-rc"),
-<<<<<<< ours
         .package(url: "https://github.com/vapor/leaf.git", from: "3.0.0-rc")
-//        .package(url: "./JSONValidator", from: "1.0.0")
-||||||| base
-        .package(url: "https://github.com/vapor/leaf.git", from: "3.0.0-rc"),
-        .package(url: "./JSONValidator", from: "1.0.0")
-=======
-        .package(url: "https://github.com/vapor/leaf.git", from: "3.0.0-rc")
->>>>>>> theirs
     ],
     
     targets: [
