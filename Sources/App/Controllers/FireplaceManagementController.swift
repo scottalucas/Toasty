@@ -18,23 +18,24 @@ struct FireplaceManagementController: RouteCollection {
         func updateHandler (_ req: Request) throws -> Future<HTTPStatus> {
             let logger = try req.make(Logger.self)
             logger.debug ("Hit Imp controller.")
-            var update:CodableFireplace = CodableFireplace(name: "dummy", level: .unknown, url: "dummy", power: .line)
-            return try req.content.decode(CodableFireplace.self)
-                .flatMap(to: Fireplace?.self) { updt in
-                    update = updt
-                    return Fireplace.query(on: req)
-                        .filter(try \.controlUrl == update.url)
-                        .first()
-                }.flatMap (to: HTTPStatus.self) { optFireplace in
+            guard let codableFireplace = try? req.content.syncDecode(CodableFireplace.self) else {
+                logger.error("Failed to decode inbound request: \(req.http.body.debugDescription)")
+                return Future.map(on: req) { HTTPStatus(statusCode: 404, reasonPhrase: "Could not decode request.")}
+            }
+            
+            return Fireplace.query(on: req)
+                    .filter(try \.controlUrl == codableFireplace.url)
+                    .first()
+                .flatMap (to: HTTPStatus.self) { optFireplace in
                     var fp:Fireplace
                     if optFireplace != nil {
                         fp = optFireplace!
-                        fp.friendlyName = update.name
-                        fp.controlUrl = update.url
-                        fp.status = update.level
-                        fp.powerSource = update.power
+                        fp.friendlyName = codableFireplace.name
+                        fp.controlUrl = codableFireplace.url
+                        fp.status = codableFireplace.level
+                        fp.powerSource = codableFireplace.power
                     } else {
-                        fp = Fireplace(fireplaceStatus: update)
+                        fp = Fireplace(fireplaceStatus: codableFireplace)
                     }
                     fp.lastStatusUpdate = Date()
                     return fp.update(on: req)
