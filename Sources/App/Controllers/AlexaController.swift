@@ -159,7 +159,6 @@ struct AlexaController: RouteCollection {
         
         alexaRoutes.get(use: helloHandler)
         alexaRoutes.post("Discovery", use: discoveryHandler)
-//        alexaRoutes.get("Discovery", use: discoveryHandler)
         alexaRoutes.post("ReportState", use: reportStateHandler)
         alexaRoutes.post("PowerController", use: powerControllerHandler)
         }
