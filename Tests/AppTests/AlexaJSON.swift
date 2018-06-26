@@ -13,7 +13,7 @@ public class Validator: NSObject {
         let jsDirectory = "\(rootDirectory)/Public"
         let files = try! fm.contentsOfDirectory(atPath: jsDirectory)
 //        let jsCode = try! String.init(contentsOfFile: "\(jsDirectory)Zschema.bundle.js")
-        let jsCode = try! String.init(data: fm.contents(atPath: "\(jsDirectory)/Zschema.bundle.js")!, encoding: .utf8) 
+        let jsCode = String.init(data: fm.contents(atPath: "\(jsDirectory)/Zschema.bundle.js")!, encoding: .utf8) 
         self.context = JSContext(virtualMachine: self.vm)
         let nativeLog: @convention(block) (String) -> Void = { message in
             NSLog("JS Log: \(message)")

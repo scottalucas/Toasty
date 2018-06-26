@@ -196,9 +196,9 @@ struct LoginWithAmazonError: Error, ToastyError {
         var formatString: String = String("\nLWA Error description: \(description)")
         formatString.append((file != nil) ? String("\n\tFile: \(file!)") : "")
         formatString.append((function != nil) ? String("\n\tFunction: \(function!)") : "")
-        formatString.append((line != nil) ? String(format: "\n\tLine: \(line!)") : "")
-        formatString.append((uri != nil) ? String(format: "\n\tURI: \(uri!)") : "")
-        logger.error(formatString)
+        formatString.append((line != nil) ? String("\n\tLine: \(line!)") : "")
+        formatString.append((uri != nil) ? String("\n\tURI: \(uri!)") : "")
+//        logger.error(formatString)
         return formatString
     }
     

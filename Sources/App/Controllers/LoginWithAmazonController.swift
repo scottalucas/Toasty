@@ -10,6 +10,7 @@ struct LoginWithAmazonController: RouteCollection {
         let loginWithAmazonRoutes = router.grouped(ToastyAppRoutes.lwa.root)
         
         func helloHandler (_ req: Request) throws -> String {
+            let logger = try req.make(Logger.self)
             logger.debug("Hit LWA base route.")
             let lwaInteractionMode = LWAInteractionMode(rawValue: (try? req.parameters.next(String.self)) ?? LWAInteractionMode.auto.rawValue)?.rawValue ?? "auto"
             return "Hello! You got LWA! With parameter \(lwaInteractionMode)"
@@ -88,7 +89,7 @@ struct LoginWithAmazonController: RouteCollection {
                 clientId: clientId,
                 clientSecret: clientSecret)
             
-            let lwaAccessTokenGrant:Future<LWAAccessTokenGrant> = try getLwaAccessTokenGrant(using: authRequest, with: client)
+            let lwaAccessTokenGrant:Future<LWAAccessTokenGrant> = try getLwaAccessTokenGrant(using: authRequest, with: client, on: req)
             
             let amazonUserScope:Future<LWACustomerProfileResponse> = try getAmazonScope(using: lwaAccessTokenGrant, on: req)
 
@@ -185,7 +186,8 @@ struct LoginWithAmazonController: RouteCollection {
     //help functions, not route responders
     //*******************************************************************************
     
-    func getLwaAccessTokenGrant (using lwaAccessReq:LWAAccessTokenRequest, with client: Client) throws -> Future<LWAAccessTokenGrant> {
+    func getLwaAccessTokenGrant (using lwaAccessReq:LWAAccessTokenRequest, with client: Client, on req: Request) throws -> Future<LWAAccessTokenGrant> {
+        let logger = try req.make(Logger.self)
         return client.post(LWASites.tokens, beforeSend: { newPost in
             logger.info("Asking for token from: \(LWASites.tokens)")
             newPost.http.contentType = .urlEncodedForm
@@ -212,6 +214,7 @@ struct LoginWithAmazonController: RouteCollection {
     }
     
     func getSessionFireplaces (using placeholderAcct: Future<User?>, on req: Request) throws -> Future<[Fireplace]> {
+        let logger = try req.make(Logger.self)
         return placeholderAcct.flatMap (to: [Fireplace].self) { optAcct in
             guard let acct = optAcct else {
                 throw LoginWithAmazonError(.noAvailableFireplaces, file: #file, function: #function, line: #line)
@@ -225,6 +228,7 @@ struct LoginWithAmazonController: RouteCollection {
     }
     
     func getAmazonScope (using accessCode: Future<LWAAccessTokenGrant>, on req: Request) throws -> Future<LWACustomerProfileResponse> {
+        let logger = try req.make(Logger.self)
         guard let client = try? req.make(Client.self) else {
             throw LoginWithAmazonError(.serverError, file: #file, function: #function, line: #line)
         }
@@ -255,6 +259,7 @@ struct LoginWithAmazonController: RouteCollection {
     
     
     func getPlaceholderUserAccount (placeholderUserId: String, context req: Request) throws -> Future<User?> {
+        let logger = try req.make(Logger.self)
         guard let placeholderUuid = UUID.init(placeholderUserId) else {
             throw LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line)
         }
@@ -266,6 +271,7 @@ struct LoginWithAmazonController: RouteCollection {
     }
     
     func getUser (basedOn scope: Future<LWACustomerProfileResponse>, orCreateFrom: Future<User?>, on req: Request) -> Future<User> {
+        let logger = try? req.make(Logger.self)
         return flatMap(to: User.self, scope, orCreateFrom) { scope, placeholderUser in
             do {
                 return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
@@ -287,6 +293,7 @@ struct LoginWithAmazonController: RouteCollection {
     }
     
     func installFireplaces(userAccount: Future<User>, amazonAccount: Future<AmazonAccount>, discoveredFps: Future<[Fireplace]>, context req: Request) throws -> Future<String> {
+        let logger = try req.make(Logger.self)
         return flatMap(to: String.self, userAccount, amazonAccount, discoveredFps) { usrAcct, azAcct, candidateFps in
             guard usrAcct.id != nil, azAcct.id != nil else {throw
                 LoginWithAmazonError(.couldNotCreateFireplaces, file: #file, function: #function, line: #line)

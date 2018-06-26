@@ -6,12 +6,14 @@ struct AlexaController: RouteCollection {
     func boot(router: Router) throws {
         let alexaRoutes = router.grouped(ToastyAppRoutes.alexa.root)
         
-        func helloHandler (_ req: Request) -> String {
-            debugPrint ("Hit on the post.")
+        func helloHandler (_ req: Request) throws -> String {
+            let logger = try req.make(Logger.self)
+            logger.debug ("Hit on the post.")
             return "Hello! You got Alexa controller!"
         }
         
         func discoveryHandler (_ req: Request) throws -> Future<Response> {
+            let logger = try req.make(Logger.self)
             guard
                 let discoveryRequest:AlexaMessage = try? req.content.syncDecode(AlexaMessage.self),
                 let userRequestToken = discoveryRequest.directive.payload.scope?.token
@@ -39,6 +41,7 @@ struct AlexaController: RouteCollection {
         
         func powerControllerHandler(_ req: Request) throws ->
             Future<Response> {
+                let logger = try req.make(Logger.self)
                 guard
                     let inboundMessage:AlexaMessage = try? req.content.syncDecode(AlexaMessage.self),
                     let endpoint: AlexaEndpoint = inboundMessage.directive.endpoint,
@@ -107,6 +110,7 @@ struct AlexaController: RouteCollection {
         }
        
         func reportStateHandler(_ req: Request) throws -> Future<Response> {
+            let logger = try req.make(Logger.self)
             guard
                 let stateReportRequest: AlexaMessage = try? req.content.syncDecode(AlexaMessage.self)
                 else {

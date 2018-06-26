@@ -16,6 +16,7 @@ struct FireplaceManagementController: RouteCollection {
         let fireplaceRoutes = router.grouped(ToastyAppRoutes.fireplace.root)
         
         func updateHandler (_ req: Request) throws -> Future<HTTPStatus> {
+            let logger = try req.make(Logger.self)
             logger.debug ("Hit Imp controller.")
             var update:CodableFireplace = CodableFireplace(name: "dummy", level: .unknown, url: "dummy", power: .line)
             return try req.content.decode(CodableFireplace.self)
@@ -46,6 +47,7 @@ struct FireplaceManagementController: RouteCollection {
         fireplaceRoutes.post("Update", use: updateHandler)
     }
     static func action (_ action: ImpFireplaceAction, executeOn fireplace: Fireplace, on req: Request) throws -> Future<ImpFireplaceStatus> {
+        let logger = try req.make(Logger.self)
         let sessionConfig = URLSessionConfiguration.default
         sessionConfig.timeoutIntervalForRequest = 7.0
         sessionConfig.timeoutIntervalForResource = 7.0
