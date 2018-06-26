@@ -193,11 +193,11 @@ struct LoginWithAmazonError: Error, ToastyError {
     }
     
     var localizedDescription: String {
-        var formatString: String = String(format: "\nLWA Error description: %@", description)
-        formatString.append((file != nil) ? String(format: "\n\tFile: %@", file!) : "")
-        formatString.append((function != nil) ? String(format: "\n\tFunction: %@", function!) : "")
-        formatString.append((line != nil) ? String(format: "\n\tLine: %d", line!) : "")
-        formatString.append((uri != nil) ? String(format: "\n\tURI: %d", uri!) : "")
+        var formatString: String = String("\nLWA Error description: \(description)")
+        formatString.append((file != nil) ? String("\n\tFile: \(file!)") : "")
+        formatString.append((function != nil) ? String("\n\tFunction: \(function!)") : "")
+        formatString.append((line != nil) ? String(format: "\n\tLine: \(line!)") : "")
+        formatString.append((uri != nil) ? String(format: "\n\tURI: \(uri!)") : "")
         logger.error(formatString)
         return formatString
     }
@@ -250,8 +250,8 @@ struct ErrorFormat {
             return String("""
 
 *********************** NSURL ERROR ****************************
-    Error description: \((err.userInfo["NSLocalizedDescription"] as? String))
-    Failing url: \(err.userInfo["NSErrorFailingURLKey"] as? String)
+Error description: \(String(describing: err.userInfo["NSLocalizedDescription"]))
+Failing url: \(String(describing: err.userInfo["NSErrorFailingURLKey"]))
 ********************** END NSURL ERROR**************************
 
 """)
