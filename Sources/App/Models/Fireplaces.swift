@@ -5,23 +5,46 @@ import FluentPostgreSQL
 final class Fireplace: Codable {
     var id:UUID?
     var friendlyName:String
-    var powerSource:PowerSource
+    var powerSource:PowerStatus
     var controlUrl:String //unique to each physical fireplace
-    var status:String? //flame is on or off
+    var status:FireLevel? //flame is on or off
     var lastStatusUpdate: Date?
-    var parentUserId:User.ID
+    var parentUserId:User.ID?
 
-    enum PowerSource: Int, Codable, PostgreSQLEnumType {
-        case battery, line
+    enum PowerStatus: Int, Codable, PostgreSQLEnumType {
+        case line = -1, low, ok
     }
     
-    init (power source: PowerSource, imp agentUrl: String, user acctId: UUID, friendly name: String?) {
+    enum FireLevel: Int, Codable {
+        case unknown = -1, off, on
+        
+        func alexaValue () -> String? {
+            switch self {
+            case .off:
+                return "OFF"
+            case .on:
+                return "ON"
+            default:
+                return nil
+            }
+        }
+    }
+    
+    init (power source: PowerStatus, imp agentUrl: String, user acctId: UUID, friendly name: String?) {
         powerSource = source
         controlUrl = agentUrl
         parentUserId = acctId
         friendlyName = name ?? "Toasty Fireplace"
         status = nil
         lastStatusUpdate = nil
+    }
+    
+    init (fireplaceStatus: CodableFireplace) {
+        powerSource = fireplaceStatus.power
+        controlUrl = fireplaceStatus.url
+        friendlyName = fireplaceStatus.name
+        status = fireplaceStatus.level
+        lastStatusUpdate = Date()
     }
     
     func uncertainty () -> Int? {
@@ -43,7 +66,7 @@ extension Fireplace: Migration {
 }
 extension Fireplace: Parameter {}
 extension Fireplace {
-    var user: Parent<Fireplace, User> {
+    var user: Parent<Fireplace, User>? {
         return parent(\.parentUserId)
     }
     var alexaFireplaces: Children<Fireplace, AlexaFireplace> {
@@ -53,15 +76,3 @@ extension Fireplace {
 
 
 
-struct CodableFireplace:Content { //structure to decode the fireplaces passed from the app
-    var fireplaces:[fireplace]
-    struct fireplace:Codable {
-        var friendlyName:String
-        var powerSource:String
-        var controlUrl:String
-    }
-}
-
-struct CodableFireplaces:Content {
-    var fireplaces:[CodableFireplace]
-}

@@ -15,9 +15,32 @@ struct FireplaceManagementController: RouteCollection {
         
         let fireplaceRoutes = router.grouped(ToastyAppRoutes.fireplace.root)
         
-        func updateHandler (_ req: Request) -> String {
+        func updateHandler (_ req: Request) throws -> Future<HTTPStatus> {
             logger.debug ("Hit Imp controller.")
-            return "Hello! You got Imp controller!"
+            var update:CodableFireplace = CodableFireplace(name: "dummy", level: .unknown, url: "dummy", power: .line)
+            return try req.content.decode(CodableFireplace.self)
+                .flatMap(to: Fireplace?.self) { updt in
+                    update = updt
+                    return Fireplace.query(on: req)
+                        .filter(try \.controlUrl == update.url)
+                        .first()
+                }.flatMap (to: HTTPStatus.self) { optFireplace in
+                    var fp:Fireplace
+                    if optFireplace != nil {
+                        fp = optFireplace!
+                        fp.friendlyName = update.name
+                        fp.controlUrl = update.url
+                        fp.status = update.level
+                        fp.powerSource = update.power
+                    } else {
+                        fp = Fireplace(fireplaceStatus: update)
+                    }
+                    fp.lastStatusUpdate = Date()
+                    return fp.update(on: req)
+                        .transform(to: HTTPStatus(statusCode: 200, reasonPhrase: "Success!"))
+                }.catchFlatMap () { error in
+                    return Future.map(on: req) { HTTPStatus(statusCode: 404, reasonPhrase: "Could not decode fireplace update message, error: \(error).") }
+            }
         }
         
         fireplaceRoutes.post("Update", use: updateHandler)
@@ -39,7 +62,7 @@ struct FireplaceManagementController: RouteCollection {
                 return status
             }.flatMap (to: Fireplace.self) { status in
                 finalStatus = status
-                fireplace.status = status.value?.rawValue
+                fireplace.status = status.value == .ON ? .on : .off
                 fireplace.lastStatusUpdate = Date()
                 return fireplace.save(on: req)
             }.map(to: ImpFireplaceStatus.self) { fireplace in

@@ -512,12 +512,12 @@ struct AlexaStateReport: Codable, Content, ResponseEncodable {
         event = AlexaEvent(header: header, endpoint: endpoint, payload: payload)
         var properties:[AlexaProperty]
         switch fireplace.status {
-            case .some(let val):
+            case .some(let val) where val.alexaValue() != nil:
                 properties = [
                     AlexaProperty(endpointHealth: .ok),
-                    AlexaProperty(namespace: .power, name: .power, value: val, time: Date(), uncertainty: fireplace.uncertainty() ?? 60000)
+                    AlexaProperty(namespace: .power, name: .power, value: val.alexaValue()!, time: Date(), uncertainty: fireplace.uncertainty() ?? 60000)
                 ]
-            case .none:
+            default:
                 properties = [
                     AlexaProperty(endpointHealth: .unreachable)
                 ]

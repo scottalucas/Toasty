@@ -50,7 +50,7 @@ struct LoginWithAmazonController: RouteCollection {
                     context["PROFILE"] = LWATokenRequestConfig.profile
                     context["INTERACTIVE"] = lwaInteractionMode
                     context["RESPONSETYPE"] = LWATokenRequestConfig.responseType
-                    context["STATE"] = fps[0].parentUserId.uuidString
+                    context["STATE"] = fps[0].parentUserId?.uuidString ?? "No parent account."
                     context["LWACLIENTID"] = clientId
                     return try req.view().render("AuthUserMgmt/lwaLogin", context)
             }
@@ -313,7 +313,7 @@ struct LoginWithAmazonController: RouteCollection {
                             .flatMap (to: AlexaFireplace.self) { optAxFp in
                                 let newAzFp = (optAxFp != nil) ? optAxFp! : AlexaFireplace(childOf: newFp, associatedWith: azAcct)!
                                 newAzFp.parentAmazonAccountId = azAcct.id!
-                                newAzFp.status = (newFp.powerSource == .battery) ? .notRegisterable : .availableForRegistration
+                                newAzFp.status = (newFp.powerSource != .line) ? .notRegisterable : .availableForRegistration
                                 return newAzFp.save(on: req)
                         }
                 }

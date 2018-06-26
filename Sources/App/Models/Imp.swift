@@ -10,7 +10,7 @@ import Vapor
 
 
 
-struct ImpFireplaceAction: Encodable, Content {
+struct ImpFireplaceAction: Encodable, Content { //action directive from Alexa ==> deviceCloud ==> Imp
     var name:Directive
     enum Directive: String, Codable, Content {
         case on = "TurnOn", off = "TurnOff", update = "Update"
@@ -25,7 +25,7 @@ struct ImpFireplaceAction: Encodable, Content {
     }
 }
 
-struct ImpFireplaceStatus: Codable { //messages for Imp status communication
+struct ImpFireplaceStatus: Codable { //messages for status communication deviceCloud ==> Alexa
     var ack: AcknowledgeMessage
     var value: ValueMessage? //matches what's needed for status response to Alexa
     var uncertaintyInMilliseconds: Int?
@@ -63,4 +63,10 @@ extension ImpFireplaceStatus { //encoding strategy, only used when sending messa
     }
 }
 
+struct CodableFireplace:Codable, Content { //structure to decode the fireplaces passed from Imp ==> device cloud
+    var name:String
+    var level: Fireplace.FireLevel
+    var url:String
+    var power:Fireplace.PowerStatus
+}
 
