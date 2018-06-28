@@ -7,7 +7,7 @@ struct AlexaController: RouteCollection {
         let alexaRoutes = router.grouped(ToastyAppRoutes.alexa.root)
         
         func helloHandler (_ req: Request) throws -> String {
-            let logger = try req.make(Logger.self)
+            let logger = try req.sharedContainer.make(Logger.self)
             logger.debug ("Hit on the post.")
             return "Hello! You got Alexa controller!"
         }
