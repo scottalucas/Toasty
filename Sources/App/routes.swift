@@ -24,9 +24,10 @@ public func routes(_ router: Router) throws {
 struct ToastyAppRoutes {
     static let site = ENVVariables.siteUrl
     struct lwa {
-            static let root = "/lwa"
-            static let auth = "\(root)/auth"
-            static let login = "\(root)/login"
+        static let root = "/lwa"
+        static let auth = "\(root)/auth"
+        static let login = "\(root)/login"
+        static let loginPage = "\(root)/loginPage"
         }
     struct alexa {
         static let root = "/Alexa"

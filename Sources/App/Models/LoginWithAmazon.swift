@@ -182,6 +182,18 @@ struct LWATokenRequestConfig {
     static let responseType:String = "code"
 }
 
+struct LoginPageSpecification: Content {
+    var userId: String
+    var interactionMode: String
+    var pageString:String
+    
+    init(_ id: String, mode: String) {
+        userId = id
+        interactionMode = mode
+        pageString = "\(ToastyAppRoutes.lwa.loginPage)/\(userId)/\(interactionMode)"
+    }
+}
+
 enum LWAInteractionMode: String {
     case always, auto, never
 }

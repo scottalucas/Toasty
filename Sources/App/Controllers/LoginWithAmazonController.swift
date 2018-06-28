@@ -16,26 +16,21 @@ struct LoginWithAmazonController: RouteCollection {
             return "Hello! You got LWA! With parameter \(lwaInteractionMode)"
         }
         
-        func loginHandler (_ req: Request) throws -> Future<View> {
+        func loginHandler (_ req: Request) throws -> Future<Response> {
             let logger = try req.make(Logger.self)
             logger.info("Login handler hit with \(req.debugDescription)")
             let lwaInteractionMode = LWAInteractionMode(rawValue: (try? req.parameters.next(String.self)) ?? LWAInteractionMode.auto.rawValue)?.rawValue ?? "auto" //interaction mode is whether or not the user is prompted for credentials or cached credentials are in use.
             var context = [String: String]()
-            
-            guard
-                let site = Environment.get(ENVVariables.siteUrl),
-                let clientId = Environment.get(ENVVariables.lwaClientId)
-                else {
-                    throw LoginWithAmazonError(.serverMisconfigured, file: #file, function: #function, line: #line)
-            }
+
 
             guard
                 let fireplaces = try? req.content.syncDecode([Fireplace].self),
                 fireplaces.count > 0
                 else {
                     context["MSG"] = "No fireplaces found or malformed JSON in request, please discover fireplaces first."
-                    return try req.view().render("noFireplaces", context)
-//                    LoginWithAmazonError(.noAvailableFireplaces, file: #file, function: #function, line: #line).context)
+//                    return try req.view().render("noFireplaces", context)
+                    logger.error(LoginWithAmazonError(.noAvailableFireplaces, file: #file, function: #function, line: #line).localizedDescription)
+                    throw (Abort(.notFound))
             }
 
             return User(name: "Placeholder", username: "Placeholder")
@@ -59,15 +54,55 @@ struct LoginWithAmazonController: RouteCollection {
                             })
                         }
                     return saveResults.flatten(on: req)
-                }.flatMap (to: View.self) { fps in
-                    guard fps.count > 0 else {
-                        return try req.view().render("lwsAmazonAuthFail", LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line).context)
+                }.map (to: Response.self) { fps in
+                    guard
+                        fps.count > 0,
+                        let userId = fps[0].parentUserId?.uuidString
+                    else {
+                        logger.error(LoginWithAmazonError(.noAvailableFireplaces, file: #file, function: #function, line: #line).localizedDescription)
+                        throw (Abort(.notFound))
                     }
+                    let resp = req.makeResponse()
+                    try resp.content.encode(LoginPageSpecification(userId, mode: lwaInteractionMode), as: .json)
+                    return resp
+            }
+        }
+        
+        func loginPageHandler (_ req: Request) throws -> Future<View> {
+            let logger = try req.make(Logger.self)
+            var context = [String: String]()
+            
+            guard
+                let site = Environment.get(ENVVariables.siteUrl),
+                let clientId = Environment.get(ENVVariables.lwaClientId)
+                else {
+                    throw LoginWithAmazonError(.serverMisconfigured, file: #file, function: #function, line: #line)
+            }
+            
+            guard
+                let userId:String = try? req.parameters.next(String.self),
+                let associatedUserUuid:UUID = UUID.init(userId)
+                else {
+                    logger.error(LoginWithAmazonError.init(.couldNotCreateRequest, file: #file, function: #function, line: #line).localizedDescription)
+                    throw Abort(.notFound)
+            }
+            let lwaInteractionMode = LWAInteractionMode(rawValue: (try? req.parameters.next(String.self)) ?? LWAInteractionMode.auto.rawValue)?.rawValue ?? "auto" //interaction mode is whether or not the user is prompted for credentials or cached credentials are in use.
+            return User.query(on: req)
+                .filter( \.id == associatedUserUuid )
+                .first()
+                .flatMap (to: View.self) { optUser in
+                    guard
+                        let user = optUser,
+                        let userId = user.id?.uuidString
+                        else {
+                        logger.error(LoginWithAmazonError.init(.accountNotFound, file: #file, function: #function, line: #line).localizedDescription)
+                        throw Abort(.notFound)}
+                    
                     context["SITEURL"] = "\(site)\(ToastyAppRoutes.lwa.auth)"
                     context["PROFILE"] = LWATokenRequestConfig.profile
                     context["INTERACTIVE"] = lwaInteractionMode
                     context["RESPONSETYPE"] = LWATokenRequestConfig.responseType
-                    context["STATE"] = fps[0].parentUserId?.uuidString ?? "Unowned by User."
+                    context["STATE"] = userId
                     context["LWACLIENTID"] = clientId
                     return try req.view().render("AuthUserMgmt/lwaLogin", context)
             }
@@ -196,10 +231,11 @@ struct LoginWithAmazonController: RouteCollection {
         loginWithAmazonRoutes.post("access", use: accessHandler)
         loginWithAmazonRoutes.post("login", String.parameter, use: loginHandler)
         loginWithAmazonRoutes.post("login", use: loginHandler)
+        loginWithAmazonRoutes.get("loginPage", String.parameter, String.parameter, use: loginPageHandler)
     }
     
     //*******************************************************************************
-    //help functions, not route responders
+    //help functions
     //*******************************************************************************
     
     func getLwaAccessTokenGrant (using lwaAccessReq:LWAAccessTokenRequest, with client: Client, on req: Request) throws -> Future<LWAAccessTokenGrant> {

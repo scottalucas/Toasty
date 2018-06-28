@@ -155,7 +155,7 @@ struct LoginWithAmazonError: Error, ToastyError {
     var line: Int?
     
     enum Category {
-        case serverMisconfigured, serverError, couldNotInitializeAccount, unauthorized, couldNotRetrieveAmazonAccount (LWACustomerProfileResponseError?), failedToRetrieveAuthToken (LWAAuthTokenResponseError?), failedToRetrieveAccessToken (LWAAccessTokenGrantError?), failedToRetrieveUserScope(LWAUserScopeError?), couldNotCreateAccount, couldNotCreateRequest, lwaError, noAvailableFireplaces, couldNotDecode, couldNotCreateFireplaces, unknown
+        case serverMisconfigured, serverError, couldNotInitializeAccount, unauthorized, couldNotRetrieveAmazonAccount (LWACustomerProfileResponseError?), failedToRetrieveAuthToken (LWAAuthTokenResponseError?), failedToRetrieveAccessToken (LWAAccessTokenGrantError?), failedToRetrieveUserScope(LWAUserScopeError?), couldNotCreateAccount, couldNotCreateRequest, lwaError, noAvailableFireplaces, couldNotDecode, couldNotCreateFireplaces, accountNotFound, unknown
     }
     var description:String {
         switch id {
@@ -187,6 +187,8 @@ struct LoginWithAmazonError: Error, ToastyError {
             return "Login wth Amazon sent a response that Toasty could not decode."
         case .couldNotCreateFireplaces:
             return "Unable to create fireplace records in Toasty."
+        case .accountNotFound:
+            return "Could not find account in Toasty."
         case .unknown:
             return "Unknown LWA error."
         }
