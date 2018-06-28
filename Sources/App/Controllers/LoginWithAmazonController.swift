@@ -21,27 +21,43 @@ struct LoginWithAmazonController: RouteCollection {
             logger.info("Login handler hit with \(req.debugDescription)")
             let lwaInteractionMode = LWAInteractionMode(rawValue: (try? req.parameters.next(String.self)) ?? LWAInteractionMode.auto.rawValue)?.rawValue ?? "auto" //interaction mode is whether or not the user is prompted for credentials or cached credentials are in use.
             var context = [String: String]()
+            
             guard
                 let site = Environment.get(ENVVariables.siteUrl),
                 let clientId = Environment.get(ENVVariables.lwaClientId)
                 else {
                     throw LoginWithAmazonError(.serverMisconfigured, file: #file, function: #function, line: #line)
             }
+
             guard
                 let fireplaces = try? req.content.syncDecode([Fireplace].self),
                 fireplaces.count > 0
                 else {
                     context["MSG"] = "No fireplaces found or malformed JSON in request, please discover fireplaces first."
-                    return try req.view().render("lwsAmazonAuthFail", LoginWithAmazonError(.noAvailableFireplaces, file: #file, function: #function, line: #line).context)
+                    return try req.view().render("noFireplaces", context)
+//                    LoginWithAmazonError(.noAvailableFireplaces, file: #file, function: #function, line: #line).context)
             }
+
             return User(name: "Placeholder", username: "Placeholder")
                 .save(on: req)
                 .flatMap(to: [Fireplace].self) { usr in
+                    let usrId = usr.id!
                     var saveResults: [Future<Fireplace>] = []
                     for fireplace in fireplaces {
-                        guard let usrId = usr.id else {break}
-                        saveResults.append(Fireplace.init(power: fireplace.powerSource, imp: fireplace.controlUrl, user: usrId, friendly: fireplace.friendlyName).save(on: req))
-                    }
+                        saveResults.append(
+                        Fireplace
+                            .query(on: req)
+                            .filter( \.controlUrl == fireplace.controlUrl)
+                            .first()
+                            .flatMap (to: Fireplace.self) { optFoundFireplace in
+                                if var foundFireplace = optFoundFireplace {
+                                    foundFireplace.parentUserId = usrId
+                                    return foundFireplace.save(on: req)
+                                } else {
+                                    return Fireplace.init(power: fireplace.powerStatus, imp: fireplace.controlUrl, user: usrId, friendly: fireplace.friendlyName).save(on: req)
+                                }
+                            })
+                        }
                     return saveResults.flatten(on: req)
                 }.flatMap (to: View.self) { fps in
                     guard fps.count > 0 else {
@@ -51,7 +67,7 @@ struct LoginWithAmazonController: RouteCollection {
                     context["PROFILE"] = LWATokenRequestConfig.profile
                     context["INTERACTIVE"] = lwaInteractionMode
                     context["RESPONSETYPE"] = LWATokenRequestConfig.responseType
-                    context["STATE"] = fps[0].parentUserId?.uuidString ?? "No parent account."
+                    context["STATE"] = fps[0].parentUserId?.uuidString ?? "Unowned by User."
                     context["LWACLIENTID"] = clientId
                     return try req.view().render("AuthUserMgmt/lwaLogin", context)
             }
@@ -98,13 +114,13 @@ struct LoginWithAmazonController: RouteCollection {
             let discoveredFireplaces:Future<[Fireplace]> = try getSessionFireplaces(using: placeholderUserAccount, on: req)
             
             let userAcct:Future<User> = flatMap(to: User.self, amazonUserScope, placeholderUserAccount) { scope, placeholderUser in
-                    return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
+                    return AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
                         .flatMap (to: User.self) { optAzAcct in
                             if let azAcct = optAzAcct {
-                                return try azAcct.user.get(on: req)
+                                return azAcct.user.get(on: req)
                             } else {
                                 guard
-                                    let pUser = placeholderUser
+                                    var pUser = placeholderUser
                                     else {throw LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line)
                                 }
                                 pUser.setName("Anonymous")
@@ -120,8 +136,8 @@ struct LoginWithAmazonController: RouteCollection {
             
             let amazonAcct:Future<AmazonAccount> = flatMap(to: AmazonAccount.self, amazonUserScope, userAcct) { scope, usrAcct in
                 guard usrAcct.id != nil else { throw LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line)}
-                do {
-                    return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
+//                do {
+                    return AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
                         .flatMap(to: AmazonAccount.self) { optAzAcct in
                             if let azAcct = optAzAcct { //found an existing amazon account that matches the one returned, so update it
                                 azAcct.email = scope.email
@@ -133,9 +149,9 @@ struct LoginWithAmazonController: RouteCollection {
                                 return AmazonAccount.init(with: scope, user: usrAcct)!.save(on: req)
                             }
                     }
-                } catch {
-                    return AmazonAccount.init(with: scope, user: usrAcct)!.save(on: req)
-                }
+//                } catch {
+//                    return AmazonAccount.init(with: scope, user: usrAcct)!.save(on: req)
+//                }
                 }.catchFlatMap { err in
                     throw LoginWithAmazonError(.couldNotCreateAccount, file: #file, function: #function, line: #line)
             }
@@ -214,7 +230,7 @@ struct LoginWithAmazonController: RouteCollection {
     }
     
     func getSessionFireplaces (using placeholderAcct: Future<User?>, on req: Request) throws -> Future<[Fireplace]> {
-        let logger = try req.make(Logger.self)
+//        let logger = try req.make(Logger.self)
         return placeholderAcct.flatMap (to: [Fireplace].self) { optAcct in
             guard let acct = optAcct else {
                 throw LoginWithAmazonError(.noAvailableFireplaces, file: #file, function: #function, line: #line)
@@ -259,53 +275,54 @@ struct LoginWithAmazonController: RouteCollection {
     
     
     func getPlaceholderUserAccount (placeholderUserId: String, context req: Request) throws -> Future<User?> {
-        let logger = try req.make(Logger.self)
+//        let logger = try req.make(Logger.self)
         guard let placeholderUuid = UUID.init(placeholderUserId) else {
             throw LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line)
         }
-        do {
-            return try User.query(on: req).filter(\.id == placeholderUuid).first()
-        } catch {
-            throw LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line)
-        }
+//        do {
+            return User.query(on: req).filter(\.id == placeholderUuid).first()
+//        } catch {
+//            throw LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line)
+//        }
     }
     
     func getUser (basedOn scope: Future<LWACustomerProfileResponse>, orCreateFrom: Future<User?>, on req: Request) -> Future<User> {
-        let logger = try? req.make(Logger.self)
+//        let logger = try? req.make(Logger.self)
         return flatMap(to: User.self, scope, orCreateFrom) { scope, placeholderUser in
-            do {
-                return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
+//            do {
+                return AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
                     .flatMap (to: User.self) { optAzAcct in
                         if let azAcct = optAzAcct {
-                            return try azAcct.user.get(on: req)
-                        } else if let placeholderUsr = placeholderUser {
-                            placeholderUsr.setName("Anonymous")
-                            placeholderUsr.setUsername("Anonymous")
-                            return placeholderUsr.update(on: req)
+                            return azAcct.user.get(on: req)
+                        } else if var updatedUser = placeholderUser {
+                            updatedUser.setName("Anonymous")
+                            updatedUser.setUsername("Anonymous")
+                            return updatedUser.save(on: req)
                         } else {
                             return User.init(name: "Anonymous", username: "Anonymous").save(on: req)
                         }
                 }
-            } catch {
-                return User.init(name: "Anonymous", username: "Anonymous").save(on: req)
-            }
+//            } catch {
+//                return User.init(name: "Anonymous", username: "Anonymous").save(on: req)
+//            }
         }
     }
     
     func installFireplaces(userAccount: Future<User>, amazonAccount: Future<AmazonAccount>, discoveredFps: Future<[Fireplace]>, context req: Request) throws -> Future<String> {
-        let logger = try req.make(Logger.self)
+//        let logger = try req.make(Logger.self)
         return flatMap(to: String.self, userAccount, amazonAccount, discoveredFps) { usrAcct, azAcct, candidateFps in
             guard usrAcct.id != nil, azAcct.id != nil else {throw
                 LoginWithAmazonError(.couldNotCreateFireplaces, file: #file, function: #function, line: #line)
             }
             var savedAzFpTracker:[Future<AlexaFireplace>] = Array ()
             var updatedFpTracker:[Future<Fireplace>] = Array ()
-            for candidateFp in candidateFps {
-                let finalFp:Future<Fireplace> = try Fireplace.query(on: req).filter(\.controlUrl == candidateFp.controlUrl).filter(\.id != candidateFp.id).first() //check to see if we laready have an FP, based on the IMP url
+            for cFp in candidateFps {
+                var candidateFp = cFp
+                let finalFp:Future<Fireplace> = Fireplace.query(on: req).filter(\.controlUrl == candidateFp.controlUrl).filter(\.id != candidateFp.id).first() //check to see if we laready have an FP, based on the IMP url
                     .flatMap(to: Fireplace.self) { optExistingFp in
-                        if let existingFp = optExistingFp { //there's an existing FP
+                        if var existingFp = optExistingFp { //there's an existing FP
                             existingFp.friendlyName = candidateFp.friendlyName
-                            existingFp.powerSource = candidateFp.powerSource
+                            existingFp.powerStatus = candidateFp.powerStatus
                             let _ = candidateFp.delete(on: req)
                             return existingFp.update(on: req)
                         } else {
@@ -316,11 +333,12 @@ struct LoginWithAmazonController: RouteCollection {
                 
                 let finalAzFp:Future<AlexaFireplace> =
                     finalFp.flatMap(to: AlexaFireplace.self) { newFp in
-                        try AlexaFireplace.query(on: req).filter(\.parentFireplaceId == newFp.id).first()
+                        guard let newFpId = newFp.id else {throw LoginWithAmazonError.init(.couldNotCreateFireplaces, file: #file, function: #function, line: #line)}
+                        return AlexaFireplace.query(on: req).filter(\.parentFireplaceId == newFpId).first()
                             .flatMap (to: AlexaFireplace.self) { optAxFp in
                                 let newAzFp = (optAxFp != nil) ? optAxFp! : AlexaFireplace(childOf: newFp, associatedWith: azAcct)!
                                 newAzFp.parentAmazonAccountId = azAcct.id!
-                                newAzFp.status = (newFp.powerSource != .line) ? .notRegisterable : .availableForRegistration
+                                newAzFp.status = (newFp.powerStatus != .line) ? .notRegisterable : .availableForRegistration
                                 return newAzFp.save(on: req)
                         }
                 }

@@ -80,8 +80,6 @@ struct AlexaError: Error, ToastyError {
     }
 }
 
-struct teste: Error {}
-
 struct ImpError: Error, ToastyError {
     var id:Category
     var file: String?
@@ -90,7 +88,7 @@ struct ImpError: Error, ToastyError {
     
     enum Category {
 //        case badUrl, couldNotEncodeImpAction, couldNotDecodeImpResponse, couldNotDecodePowerControllerDirective, failedToEncodeResponse, failedToLookupUser, noCorrespondingToastyAccount, childFireplacesNotFound, unknown
-        case fireplaceUnavailable, fireplaceOffline, operationNotSupported, badUrl, couldNotEncodeImpAction, couldNotDecodeImpResponse, unknown
+        case fireplaceUnavailable, fireplaceOffline, operationNotSupported, badUrl, couldNotEncodeImpAction, couldNotDecodeImpResponse, foundDefaultUser, unknown
     }
     var description:String {
         switch id {
@@ -106,6 +104,8 @@ struct ImpError: Error, ToastyError {
             return "Failed to encode the Imp action into a format to send via http."
         case .couldNotDecodeImpResponse:
             return "The reponse from the fireplace could not be decoded."
+        case .foundDefaultUser:
+            return "Default user already exists."
 //        case .couldNotDecodePowerControllerDirective:
 //            return "Could not decode instructions from Alexa."
 //        case .failedToEncodeResponse:
@@ -140,7 +140,7 @@ struct ImpError: Error, ToastyError {
             "ERRORLINE" : line.debugDescription
         ]
     }
-    init(_ id: Category, file: String?, function: String?, line: Int?) {
+    init(_ id: Category, file: String? = nil, function: String? = nil, line: Int? = nil) {
         self.id = id
         self.file = file
         self.function = function

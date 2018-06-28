@@ -46,7 +46,7 @@ struct TestController: RouteCollection {
                     guard let usrId = usr.id else { throw AlexaError(.placeholderAccountNotFound, file: #file, function: #function, line: #line)}
                     var saveResults: [Future<Fireplace>] = []
                     for fireplace in fireplaces {
-                    saveResults.append(Fireplace.init(power: fireplace.powerSource, imp: fireplace.controlUrl, user: usrId, friendly: fireplace.friendlyName).save(on: req))
+                    saveResults.append(Fireplace.init(power: fireplace.powerStatus, imp: fireplace.controlUrl, user: usrId, friendly: fireplace.friendlyName).save(on: req))
                     }
                     return saveResults.flatten(on: req)
                 }.map (to: Response.self) { fps in

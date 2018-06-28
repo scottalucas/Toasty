@@ -18,37 +18,39 @@ struct FireplaceManagementController: RouteCollection {
         func updateHandler (_ req: Request) throws -> Future<HTTPStatus> {
             let logger = try req.make(Logger.self)
             logger.debug ("Hit Imp controller.")
-            guard let codableFireplace = try? req.content.syncDecode(CodableFireplace.self) else {
+            guard var updatingFireplace = try? req.content.syncDecode(Fireplace.self) else {
                 logger.error("Failed to decode inbound request: \(req.http.body.debugDescription)")
                 return Future.map(on: req) { HTTPStatus(statusCode: 404, reasonPhrase: "Could not decode request.")}
             }
             
             return Fireplace.query(on: req)
-                    .filter(try \.controlUrl == codableFireplace.url)
+                    .filter( \.controlUrl == updatingFireplace.controlUrl )
                     .first()
-                .flatMap (to: HTTPStatus.self) { optFireplace in
-                    var fp:Fireplace
+                .flatMap (to: Fireplace.self) { optFireplace in
                     if optFireplace != nil {
-                        fp = optFireplace!
-                        fp.friendlyName = codableFireplace.name
-                        fp.controlUrl = codableFireplace.url
-                        fp.status = codableFireplace.level
-                        fp.powerSource = codableFireplace.power
+                        var fp = optFireplace!
+                        fp.friendlyName = updatingFireplace.friendlyName
+                        fp.controlUrl = updatingFireplace.controlUrl
+                        fp.status = updatingFireplace.status
+                        fp.powerStatus = updatingFireplace.powerStatus
+                        fp.lastStatusUpdate = Date()
+                        return fp.update(on: req)
                     } else {
-                        fp = Fireplace(fireplaceStatus: codableFireplace)
+                        updatingFireplace.lastStatusUpdate = Date()
+                        updatingFireplace.parentUserId = defaultUserId
+                        return updatingFireplace.save(on: req)
                     }
-                    fp.lastStatusUpdate = Date()
-                    return fp.update(on: req)
-                        .transform(to: HTTPStatus(statusCode: 200, reasonPhrase: "Success!"))
-                }.catchFlatMap () { error in
-                    return Future.map(on: req) { HTTPStatus(statusCode: 404, reasonPhrase: "Could not decode fireplace update message, error: \(error).") }
+                }.transform(to: HTTPStatus(statusCode: 200, reasonPhrase: "Success!"))
+                .catchFlatMap () { error in
+                    logger.error("Could not decode fireplace update message, error: \(error.localizedDescription).")
+                    return Future.map(on: req) { HTTPStatus(statusCode: 404, reasonPhrase: "Could not decode fireplace update message, error: \(error.localizedDescription).") }
             }
         }
-        
         fireplaceRoutes.post("Update", use: updateHandler)
     }
-    static func action (_ action: ImpFireplaceAction, executeOn fireplace: Fireplace, on req: Request) throws -> Future<ImpFireplaceStatus> {
-        let logger = try req.make(Logger.self)
+    static func action (_ action: ImpFireplaceAction, executeOn fp: Fireplace, on req: Request) throws -> Future<ImpFireplaceStatus> {
+        var fireplace = fp
+//        let logger = try req.make(Logger.self)
         let sessionConfig = URLSessionConfiguration.default
         sessionConfig.timeoutIntervalForRequest = 7.0
         sessionConfig.timeoutIntervalForResource = 7.0
@@ -83,5 +85,4 @@ struct FireplaceManagementController: RouteCollection {
     func addFireplace (to userAccount: User, add fireplace: Fireplace ) {
         //stub
     }
-
 }

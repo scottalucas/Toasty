@@ -30,7 +30,7 @@ public func configure(
     var databases = DatabasesConfig()
     let databaseConfig: PostgreSQLDatabaseConfig
     if let url = Environment.get("DATABASE_URL") {
-        databaseConfig = try PostgreSQLDatabaseConfig(url: url)
+        databaseConfig = (try PostgreSQLDatabaseConfig(url: url))!
     } else {
         let databaseName: String
         let databasePort: Int

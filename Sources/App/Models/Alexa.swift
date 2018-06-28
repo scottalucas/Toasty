@@ -14,7 +14,7 @@ final class AlexaFireplace: Codable {
         guard let fpId = fireplace.id, let azId = amazonAccount.id else { return nil }
         parentFireplaceId = fpId
         parentAmazonAccountId = azId
-        self.status = (fireplace.powerSource != .line) ? Status.notRegisterable : Status.availableForRegistration
+        self.status = (fireplace.powerStatus != .line) ? Status.notRegisterable : Status.availableForRegistration
     }
 }
 
@@ -24,8 +24,8 @@ extension AlexaFireplace:Migration {
     static func prepare(on connection: PostgreSQLConnection) -> Future<Void> {
         return Database.create(self, on: connection) { builder in
             try addProperties(to: builder)
-            try builder.addReference(from: \.parentAmazonAccountId, to: \AmazonAccount.id)
-            try builder.addReference(from: \.parentFireplaceId, to: \Fireplace.id)
+            builder.reference(from: \.parentAmazonAccountId, to: \AmazonAccount.id)
+            builder.reference(from: \.parentFireplaceId, to: \Fireplace.id)
         }
     }
 }
@@ -512,12 +512,12 @@ struct AlexaStateReport: Codable, Content, ResponseEncodable {
         event = AlexaEvent(header: header, endpoint: endpoint, payload: payload)
         var properties:[AlexaProperty]
         switch fireplace.status {
-            case .some(let val) where val.alexaValue() != nil:
+            case .off, .on:
                 properties = [
                     AlexaProperty(endpointHealth: .ok),
-                    AlexaProperty(namespace: .power, name: .power, value: val.alexaValue()!, time: Date(), uncertainty: fireplace.uncertainty() ?? 60000)
+                    AlexaProperty(namespace: .power, name: .power, value: fireplace.status.alexaValue()!, time: Date(), uncertainty: fireplace.uncertainty() ?? 60000)
                 ]
-            default:
+            case .unknown:
                 properties = [
                     AlexaProperty(endpointHealth: .unreachable)
                 ]

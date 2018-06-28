@@ -63,10 +63,10 @@ extension ImpFireplaceStatus { //encoding strategy, only used when sending messa
     }
 }
 
-struct CodableFireplace:Codable, Content { //structure to decode the fireplaces passed from Imp ==> device cloud
-    var name:String
-    var level: Fireplace.FireLevel
-    var url:String
-    var power:Fireplace.PowerStatus
-}
+//struct CodableFireplace: Codable, Content { //structure to decode the fireplaces passed from Imp ==> device cloud
+//    var name:String
+//    var level: Fireplace.FireLevel
+//    var power: Fireplace.PowerStatus
+//    var url:String
+//}
 

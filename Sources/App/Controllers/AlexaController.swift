@@ -136,7 +136,7 @@ struct AlexaController: RouteCollection {
                         .encode (for: req)
             }
             
-            return try Fireplace.query(on: req)
+            return Fireplace.query(on: req)
             .filter(\.id == endpointUUID)
             .first()
             .flatMap (to: ImpFireplaceStatus.self) { optFireplace in
@@ -172,9 +172,7 @@ struct AlexaController: RouteCollection {
         //*******************************************************************************
         
     static func getAssociatedFireplaces(using amazonAccount: AmazonAccount, on req: Request) throws -> Future<[Fireplace]> {
-        return try amazonAccount.user.query(on: req).first()
-            //            }.catchFlatMap { err in
-            //                throw AlexaError(.failedToLookupUser, file: #file, function: #function, line: #line)
+        return amazonAccount.user.query(on: req).first()
             .flatMap (to: [Fireplace].self) { optUser in
                 guard let user = optUser else {
                     throw AlexaError(.noCorrespondingToastyAccount, file: #file, function: #function, line: #line)

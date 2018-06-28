@@ -1,11 +1,13 @@
 import Foundation
 import Vapor
 import FluentPostgreSQL
+let defaultUserId = UUID.init("FFFFFFFF-0000-0000-0000-000000000000")!
 
-final class User: Codable {
+struct User: Codable {
     var id: UUID?
     var name: String?
     var username: String?
+
     
     init() {
         name = nil
@@ -21,12 +23,12 @@ final class User: Codable {
         id = userId
     }
     
-    func setName (_ name: String) {
+    mutating func setName (_ name: String) {
         self.name = name
         return
     }
     
-    func setUsername (_ userName: String) {
+    mutating func setUsername (_ userName: String) {
         self.username = userName
         return
     }
@@ -47,7 +49,8 @@ extension User {
 }
 
 extension User {
-    class func getAmazonAccount (usingToken token: String, on req: Request) throws -> Future<AmazonAccount> {
+    static func getAmazonAccount (usingToken token: String, on req: Request) throws -> Future<AmazonAccount> {
+        let logger = try req.make(Logger.self)
         guard let client = try? req.make(Client.self) else {
             throw LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line)
         }
@@ -69,7 +72,7 @@ extension User {
                         return try res.content.decode(LWACustomerProfileResponse.self)
                             .flatMap(to: AmazonAccount?.self) { scope in
                                 logger.info("Got Amazon id: \(scope.user_id)")
-                                return try AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
+                                return AmazonAccount.query(on: req).filter(\.amazonUserId == scope.user_id).first()
                             } .map (to: AmazonAccount.self) { optAcct in
                                 guard let acct = optAcct else {
                                     throw LoginWithAmazonError(.couldNotCreateAccount, file: #file, function: #function, line: #line)
@@ -85,6 +88,27 @@ extension User {
                     }
                     throw LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line)
                 }
+        }
+    }
+}
+
+extension User {
+    static func setUpUnassignedUserAccount (on app: Application) -> Future<String> {
+        let unassignedUserId = UUID.init("FFFFFFFF-0000-0000-0000-000000000000")!
+        return app.withNewConnection(to: .psql) {
+            conn in
+            return User.query(on: conn)
+                .filter ( \.id == unassignedUserId )
+                .first()
+                .flatMap(to: User.self) { optUser in
+                    guard optUser == nil else { throw ImpError(.foundDefaultUser) }
+                    return User.init(name: "Default user", username: "default").save(on: conn)
+                }.flatMap () { user in
+                    let queryString = """
+UPDATE "User" SET id = '\(unassignedUserId.uuidString)' WHERE id = '\(user.id!.uuidString)';
+"""
+                    return conn.simpleQuery(queryString).transform(to: "done")
+            }
         }
     }
 }
