@@ -16,7 +16,7 @@ struct FireplaceManagementController: RouteCollection {
         let fireplaceRoutes = router.grouped(ToastyAppRoutes.fireplace.root)
         
         func updateHandler (_ req: Request) throws -> Future<HTTPStatus> {
-            let logger = try req.make(Logger.self)
+            let logger = try req.sharedContainer.make(Logger.self)
             logger.debug ("Hit Imp controller.")
             guard var updatingFireplace = try? req.content.syncDecode(Fireplace.self) else {
                 logger.error("Failed to decode inbound request: \(req.http.body.debugDescription)")

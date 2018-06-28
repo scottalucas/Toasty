@@ -10,14 +10,14 @@ struct LoginWithAmazonController: RouteCollection {
         let loginWithAmazonRoutes = router.grouped(ToastyAppRoutes.lwa.root)
         
         func helloHandler (_ req: Request) throws -> String {
-            let logger = try req.make(Logger.self)
+            let logger = try req.sharedContainer.make(Logger.self)
             logger.debug("Hit LWA base route.")
             let lwaInteractionMode = LWAInteractionMode(rawValue: (try? req.parameters.next(String.self)) ?? LWAInteractionMode.auto.rawValue)?.rawValue ?? "auto"
             return "Hello! You got LWA! With parameter \(lwaInteractionMode)"
         }
         
         func loginHandler (_ req: Request) throws -> Future<Response> {
-            let logger = try req.make(Logger.self)
+            let logger = try req.sharedContainer.make(Logger.self)
             logger.info("Login handler hit with \(req.debugDescription)")
             let lwaInteractionMode = LWAInteractionMode(rawValue: (try? req.parameters.next(String.self)) ?? LWAInteractionMode.auto.rawValue)?.rawValue ?? "auto" //interaction mode is whether or not the user is prompted for credentials or cached credentials are in use.
             var context = [String: String]()
@@ -69,7 +69,7 @@ struct LoginWithAmazonController: RouteCollection {
         }
         
         func loginPageHandler (_ req: Request) throws -> Future<View> {
-            let logger = try req.make(Logger.self)
+            let logger = try req.sharedContainer.make(Logger.self)
             var context = [String: String]()
             
             guard
@@ -109,7 +109,7 @@ struct LoginWithAmazonController: RouteCollection {
         }
         
         func authHandler (_ req: Request) throws -> Future<View> {
-            let logger = try req.make(Logger.self)
+            let logger = try req.sharedContainer.make(Logger.self)
             logger.info(req.debugDescription)
             guard
                 let authResp = try? req.query.decode(LWAAuthTokenResponse.self)
@@ -216,7 +216,7 @@ struct LoginWithAmazonController: RouteCollection {
         }
         
         func accessHandler (_ req: Request) throws -> String {
-            let logger = try req.make(Logger.self)
+            let logger = try req.sharedContainer.make(Logger.self)
             let retText = "post test route"
             logger.debug("Hit post test route.")
             logger.debug("Headers: \(req.http.headers.debugDescription)")
