@@ -7,7 +7,8 @@ final class AlexaFireplace: Codable {
     var status: Status
     var parentFireplaceId: Fireplace.ID //foreign key to the generic fireplace
     var parentAmazonAccountId: AmazonAccount.ID //foreign key to the associated Alexa account
-    enum Status: Int, Codable, PostgreSQLEnumType {
+//    enum Status: Int, Codable, PostgreSQLEnumType {
+	enum Status: Int, Codable {
         case registered, availableForRegistration, notRegisterable
     }
     init? (childOf fireplace: Fireplace, associatedWith amazonAccount: AmazonAccount) {

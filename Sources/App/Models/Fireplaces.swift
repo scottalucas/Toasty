@@ -11,11 +11,13 @@ struct Fireplace: Codable {
     var lastStatusUpdate: Date?
     var parentUserId:User.ID?
 
-    enum PowerStatus: Int, Codable, PostgreSQLEnumType {
+//    enum PowerStatus: Int, Codable, PostgreSQLEnumType {
+	enum PowerStatus: Int, Codable {
         case line = -1, low, ok
     }
     
-    enum FireLevel: Int, Codable, PostgreSQLEnumType {
+//    enum FireLevel: Int, Codable, PostgreSQLEnumType {
+	enum FireLevel: Int, Codable {
         case unknown = -1, off, on
         
         func alexaValue () -> String? {
