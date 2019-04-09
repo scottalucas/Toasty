@@ -29,7 +29,7 @@ public func configure(
     // Configure a database
     var databases = DatabasesConfig()
     let databaseConfig: PostgreSQLDatabaseConfig
-    if let url = Environment.get("DATABASE_URL") {
+    if let url = Environment.get("DB_POSTGRESQL") {
         databaseConfig = (try PostgreSQLDatabaseConfig(url: url))!
     } else {
         let databaseName: String
