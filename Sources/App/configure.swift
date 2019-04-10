@@ -71,6 +71,9 @@ public func configure(
 	
 	let serverConfigure = NIOServerConfig.default(hostname: "192.168.1.111", port: 8080)
 	services.register(serverConfigure)
+	
+	// Shell
+	services.register(Shell.self)
 }
 
 struct ENVVariables {
