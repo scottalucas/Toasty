@@ -41,7 +41,7 @@ struct TestController: RouteCollection {
 			let path = ENV.PRIVATE_KEY_PATH
 			let bundleId = ENV.APP_ID
 			let shell = try req.make(Shell.self)
-			let arguments = ["-d", "@apns.json", "-H", "apns-topic:\(bundleId)", "-H", "apns-expiration: 1", "-H", "apns-priority: 10", "—-http2-prior-knowledge", "—-cert", "\(path):\(pw)", apnsURL + token]
+			let arguments = ["-d", "@apns.json", "-H", "apns-topic:\(bundleId)", "-H", "apns-expiration: 1", "-H", "apns-priority: 10", "— http2-prior-knowledge", "— cert", "\(path):\(pw)", apnsURL + token]
 			l.debug("Shell args: \(arguments.debugDescription)")
 			return try shell.execute(commandName: "curl", arguments: arguments)
 				.map(to: Response.self) { data in
