@@ -44,7 +44,8 @@ struct TestController: RouteCollection {
 			let arguments = ["-d", "test", "-H", "apns-topic:\(bundleId)", "-H", "apns-expiration: 1", "-H", "apns-priority: 10", "—-http2-prior-knowledge", "—-cert", "\(path):\(pw)", apnsURL + token]
 //			let arguments = ["-d", "@apns.json", "-H", "apns-topic:\(bundleId)", "-H", "apns-expiration: 1", "-H", "apns-priority: 10", "— http2-prior-knowledge", "— cert", "\(path):\(pw)", apnsURL + token]
 			l.debug("Shell args: \(arguments.debugDescription)")
-			return try shell.execute(commandName: "curl", arguments: arguments)
+//			return try shell.execute(commandName: "curl", arguments: arguments)
+			return try shell.execute(commandName: "ls", arguments: ["-la"])
 				.map(to: Response.self) { data in
 					let curlResponse = String(data: data, encoding: .utf8)
 					l.debug(curlResponse ?? "No curl response.")
