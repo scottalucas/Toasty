@@ -60,36 +60,7 @@ public func configure(
 	let database = PostgreSQLDatabase(config: databaseConfig)
 	databases.add(database: database, as: .psql)
 	services.register(databases)
-	
-	//    var databases = DatabasesConfig()
-	//    let databaseConfig: PostgreSQLDatabaseConfig
-	//    if let url = Environment.get("DB_POSTGRESQL") {
-	//        databaseConfig = (try PostgreSQLDatabaseConfig(url: url))!
-	//    } else {
-	//        let databaseName: String
-	//        let databasePort: Int
-	//        if (env == .testing) {
-	//            databaseName = "vapor-test"
-	//            if let testPort = Environment.get("DATABASE_PORT") {
-	//                databasePort = Int(testPort) ?? 5433
-	//            } else {
-	//                databasePort = 5433
-	//            }
-	//        }
-	//        else {
-	//            databaseName = Environment.get("DATABASEDB") ?? "vapor"
-	//            databasePort = 5432
-	//        }
-	//
-	//        let hostname = Environment.get("DATABASEHOSTNAME") ?? "localhost"
-	//        let username = Environment.get("DATABASEUSER") ?? "vapor"
-	//        let password = Environment.get("DATABASEPASSWORD") ?? "password"
-	//        databaseConfig = PostgreSQLDatabaseConfig(hostname: hostname, port: databasePort, username: username, database: databaseName, password: password)
-	//    }
-	//    let database = PostgreSQLDatabase(config: databaseConfig)
-	//    databases.add(database: database, as: .psql)
-	//    services.register(databases)
-	
+		
 	var migrations = MigrationConfig()
 	migrations.add(model: User.self, database: .psql)
 	migrations.add(model: Fireplace.self, database: .psql)
