@@ -39,8 +39,20 @@ struct TestController: RouteCollection {
 			let bundleId = ENV.APP_ID
 			let shell = try req.make(Shell.self)
 			let arguments = ["-d", jsonAPNSPayloadString, "-H", "apns-topic:\(bundleId)", "-H", "apns-expiration: 1", "-H", "apns-priority: 10", " — http2-prior-knowledge", " — cert", "\(path):\(pw)", apnsURL + token]
-			try shell.execute(commandName: "curl", arguments: arguments)
-			return Future.map(on: req) { Response (http: HTTPResponse(status: .ok), using: req) }
+			return try shell.execute(commandName: "curl", arguments: arguments)
+				.map(to: Response.self) { data in
+					let curlResponse = String(data: data, encoding: .utf8)
+					var response = HTTPResponse(status: .ok)
+					response.body = HTTPBody(string: "Curl response: \(curlResponse ?? "none.")")
+					return Response(http: response, using: req)
+			}
+//
+//			return Future.map(on: req) {
+//				try shell.execute(commandName: "curl", arguments: arguments)
+//				let response = HTTPResponse(status: .ok)
+//				response.body = HTTPBody(string: curlOutput)
+//				return Future.map(on: req) { response }
+//			}
 		}
 		
 		func setUpTestDatabaseRecords(req: Request) throws -> Future<Response> {
