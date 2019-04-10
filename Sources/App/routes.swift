@@ -40,5 +40,6 @@ struct ToastyAppRoutes {
     struct test {
         static let root = "/test"
         static let reset = "\(root)/reset"
+	static let apns = "\(root)/apns"
     }
 }
