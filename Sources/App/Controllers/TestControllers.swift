@@ -32,16 +32,16 @@ struct TestController: RouteCollection {
 		
 		func sendAPNS(req: Request) throws -> Future<Response> {
 			let l = try req.make(Logger.self)
-			let jsonAPNSPayloadString = #"""
-			{\"aps\":{\"alert\":\"Hello from Toasty\"}}
-"""#
+//			let jsonAPNSPayloadString = #"""
+//			{\"aps\":{\"alert\":\"Hello from Toasty\"}}
+//"""#
 			let apnsURL = "https://api.development.push.apple.com/3/device/"
 			let token = "3dba60b2d75af056c155e5fcd36bd657c08753c66f95f8cde8e91b89331468bd"
 			let pw = ENV.PRIVATE_KEY_PASSWORD
 			let path = ENV.PRIVATE_KEY_PATH
 			let bundleId = ENV.APP_ID
 			let shell = try req.make(Shell.self)
-			let arguments = ["-d", jsonAPNSPayloadString, "-H", "apns-topic:\(bundleId)", "-H", "apns-expiration: 1", "-H", "apns-priority: 10", " —-http2-prior-knowledge", " —-cert", "\(path):\(pw)", apnsURL + token]
+			let arguments = ["-d", "@apns.json", "-H", "apns-topic:\(bundleId)", "-H", "apns-expiration: 1", "-H", "apns-priority: 10", " —-http2-prior-knowledge", " —-cert", "\(path):\(pw)", apnsURL + token]
 			l.debug("Shell args: \(arguments.debugDescription)")
 			return try shell.execute(commandName: "curl", arguments: arguments)
 				.map(to: Response.self) { data in
