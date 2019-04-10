@@ -32,7 +32,9 @@ struct TestController: RouteCollection {
 		
 		func sendAPNS(req: Request) throws -> Future<Response> {
 			let l = try req.make(Logger.self)
-			let jsonAPNSPayloadString = "'{\"aps\":{\"alert\":\"Hello from Toasty\"}}'"
+			let jsonAPNSPayloadString = #"""
+			{\"aps\":{\"alert\":\"Hello from Toasty\"}}
+"""#
 			let apnsURL = "https://api.development.push.apple.com/3/device/"
 			let token = "3dba60b2d75af056c155e5fcd36bd657c08753c66f95f8cde8e91b89331468bd"
 			let pw = ENV.PRIVATE_KEY_PASSWORD
