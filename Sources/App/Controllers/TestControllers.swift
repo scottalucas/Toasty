@@ -40,7 +40,7 @@ struct TestController: RouteCollection {
 			let shell = try req.make(Shell.self)
 			let arguments = ["-d", jsonAPNSPayloadString, "-H", "apns-topic:\(bundleId)", "-H", "apns-expiration: 1", "-H", "apns-priority: 10", " — http2-prior-knowledge", " — cert", "\(path):\(pw)", apnsURL + token]
 			try shell.execute(commandName: "curl", arguments: arguments)
-			return Future.map(on: req) { Response (http: HTTPResponse(status: .notFound), using: req) }
+			return Future.map(on: req) { Response (http: HTTPResponse(status: .ok), using: req) }
 		}
 		
 		func setUpTestDatabaseRecords(req: Request) throws -> Future<Response> {
