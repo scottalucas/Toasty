@@ -31,6 +31,7 @@ struct TestController: RouteCollection {
 		}
 		
 		func sendAPNS(req: Request) throws -> Future<Response> {
+			let l = try req.make(Logger.self)
 			let jsonAPNSPayloadString = "{\"aps\":{\"alert\":\"Hello from Toasty\"}}"
 			let apnsURL = "https://api.development.push.apple.com/3/device/"
 			let token = "3dba60b2d75af056c155e5fcd36bd657c08753c66f95f8cde8e91b89331468bd"
@@ -39,20 +40,16 @@ struct TestController: RouteCollection {
 			let bundleId = ENV.APP_ID
 			let shell = try req.make(Shell.self)
 			let arguments = ["-d", jsonAPNSPayloadString, "-H", "apns-topic:\(bundleId)", "-H", "apns-expiration: 1", "-H", "apns-priority: 10", " — http2-prior-knowledge", " — cert", "\(path):\(pw)", apnsURL + token]
+			l.debug("Shell args: \(arguments.debugDescription)")
 			return try shell.execute(commandName: "curl", arguments: arguments)
 				.map(to: Response.self) { data in
 					let curlResponse = String(data: data, encoding: .utf8)
+					l.debug(curlResponse ?? "No curl response.")
 					var response = HTTPResponse(status: .ok)
 					response.body = HTTPBody(string: "Curl response: \(curlResponse ?? "none.")")
+					l.debug("Returning response.")
 					return Response(http: response, using: req)
 			}
-//
-//			return Future.map(on: req) {
-//				try shell.execute(commandName: "curl", arguments: arguments)
-//				let response = HTTPResponse(status: .ok)
-//				response.body = HTTPBody(string: curlOutput)
-//				return Future.map(on: req) { response }
-//			}
 		}
 		
 		func setUpTestDatabaseRecords(req: Request) throws -> Future<Response> {
