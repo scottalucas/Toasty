@@ -34,8 +34,8 @@ public func configure(
 		databaseConfig = PostgreSQLDatabaseConfig(url: url)!
 	} else {
 		let hostname = Environment.get("DATABASE_HOSTNAME") ?? "localhost"
-		let username = Environment.get("DATABASE_USER") ?? "postgres"
-		let password = Environment.get("DATABASE_PASSWORD") ?? "postgres"
+		let username = Environment.get("DATABASE_USER") ?? "toasty"
+		let password = Environment.get("DATABASE_PASSWORD") ?? "Lynnseed"
 		let databaseName: String
 		let databasePort: Int
 		if (env == .testing) {
@@ -69,8 +69,8 @@ public func configure(
 	//    migrations.add(model: SessionData.self, database: .psql)
 	services.register(migrations)
 	
-	let serverConfigure = NIOServerConfig.default(hostname: "localhost", port: 8080)
-	services.register(serverConfigure)
+//	let serverConfigure = NIOServerConfig.default(hostname: "localhost", port: 8080)
+//	services.register(serverConfigure)
 	
 	// Shell
 	services.register(Shell.self)
