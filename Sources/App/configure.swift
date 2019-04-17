@@ -69,8 +69,9 @@ public func configure(
 	//    migrations.add(model: SessionData.self, database: .psql)
 	services.register(migrations)
 	
-//	let serverConfigure = NIOServerConfig.default(hostname: "localhost", port: 8080)
-//	services.register(serverConfigure)
+	//configure server to work in container
+	let serverConfigure = NIOServerConfig.default(hostname: "0.0.0.0", port: 8080)
+	services.register(serverConfigure)
 	
 	// Shell
 	services.register(Shell.self)
