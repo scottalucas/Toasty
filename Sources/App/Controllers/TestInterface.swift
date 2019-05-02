@@ -11,23 +11,14 @@ import FluentPostgreSQL
 
 struct TestController: RouteCollection {
 	func boot(router: Router) throws {
-		let testRoutes = router.grouped(ToastyAppRoutes.test.root)
+		let testRoutes = router.grouped(ToastyServerRoutes.Test.root)
 		
 		func helloHandler (_ req: Request) -> String {
 			return "Hello! You got Test controller!"
 		}
 		
-		func resetHandler(req: Request) throws -> Future<Response> {
-			return AlexaFireplace.query(on: req).delete()
-				.map() {
-					return AmazonAccount.query(on: req).delete()
-				}.map() { _ in
-					return Fireplace.query(on: req).delete()
-				}.map() { _ in
-					return User.query(on: req).delete()
-				}.map() { _ in
-					return Response(http: HTTPResponse(status: .notFound), using: req)
-			}
+		func resetHandler(req: Request) throws -> Future<HTTPResponse> {
+			return User.query(on: req).all().transform(to: HTTPResponse(status: .ok))
 		}
 		
 		func sendAPNS(req: Request) throws -> Future<Response> {
@@ -60,30 +51,29 @@ struct TestController: RouteCollection {
 				fireplaces.count > 0
 				else {
 					let msg = "No fireplaces found or malformed JSON in request, please discover fireplaces first."
-					let res = req.makeResponse()
+					let res = req.response()
 					try res.content.encode(msg, as: .plainText)
 					return Future.map(on: req) {res}
 			}
 			return User(name: "Placeholder", username: "Placeholder")
 				.save(on: req)
 				.flatMap(to: [Fireplace].self) { usr in
-					guard let usrId = usr.id else { throw AlexaError(.placeholderAccountNotFound, file: #file, function: #function, line: #line)}
 					var saveResults: [Future<Fireplace>] = []
 					for fireplace in fireplaces {
-						saveResults.append(Fireplace.init(power: fireplace.powerStatus, imp: fireplace.controlUrl, user: usrId, friendly: fireplace.friendlyName).save(on: req))
+						saveResults.append(Fireplace.init(power: fireplace.powerStatus, imp: fireplace.controlUrl, id: fireplace.deviceid, friendly: fireplace.friendlyName)
+							.save(on: req))
 					}
 					return saveResults.flatten(on: req)
 				}.map (to: Response.self) { fps in
-					let res = req.makeResponse()
+					let res = req.response()
 					try res.content.encode(fps, as: .json)
 					return res
 			}
 		}
 		
 		testRoutes.get(use: helloHandler)
-		testRoutes.get("reset", use: resetHandler)
-		testRoutes.post("setUpUser", use: setUpTestDatabaseRecords)
-		testRoutes.get("apns", use: sendAPNS)
-		
+		testRoutes.get(ToastyServerRoutes.Test.reset, use: resetHandler)
+		testRoutes.post(ToastyServerRoutes.Test.setup, use: setUpTestDatabaseRecords)
+		testRoutes.get(ToastyServerRoutes.Test.apns, use: sendAPNS)
 	}
 }

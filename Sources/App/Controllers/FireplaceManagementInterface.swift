@@ -1,6 +1,8 @@
 //
 //  FireplaceManagementController.swift
 //  Toasty
+//  These methods are used during interactions
+//  with the Imp Agent.
 //
 //  Created by Scott Lucas on 5/23/18.
 //
@@ -13,7 +15,7 @@ import FluentPostgreSQL
 struct FireplaceManagementController: RouteCollection {
     func boot(router: Router) throws {
         
-        let fireplaceRoutes = router.grouped(ToastyAppRoutes.fireplace.root)
+        let fireplaceRoutes = router.grouped(ToastyServerRoutes.Fireplace.root)
         
         func updateHandler (_ req: Request) throws -> Future<HTTPStatus> {
             let logger = try req.sharedContainer.make(Logger.self)
@@ -22,31 +24,22 @@ struct FireplaceManagementController: RouteCollection {
                 logger.error("Failed to decode inbound request: \(req.http.body.debugDescription)")
                 return Future.map(on: req) { HTTPStatus(statusCode: 404, reasonPhrase: "Could not decode request.")}
             }
-            
-            return Fireplace.query(on: req)
-                    .filter( \.controlUrl == updatingFireplace.controlUrl )
-                    .first()
-                .flatMap (to: Fireplace.self) { optFireplace in
-                    if optFireplace != nil {
-                        var fp = optFireplace!
-                        fp.friendlyName = updatingFireplace.friendlyName
-                        fp.controlUrl = updatingFireplace.controlUrl
-                        fp.status = updatingFireplace.status
-                        fp.powerStatus = updatingFireplace.powerStatus
-                        fp.lastStatusUpdate = Date()
-                        return fp.update(on: req)
-                    } else {
-                        updatingFireplace.lastStatusUpdate = Date()
-                        updatingFireplace.parentUserId = defaultUserId
-                        return updatingFireplace.save(on: req)
-                    }
-                }.transform(to: HTTPStatus(statusCode: 200, reasonPhrase: "Success!"))
-                .catchFlatMap () { error in
-                    logger.error("Could not decode fireplace update message, error: \(error.localizedDescription).")
+		
+		return Fireplace.query(on: req)
+			.filter( \.deviceid == updatingFireplace.deviceid )
+			.first()
+			.flatMap (to: Fireplace.self) { optFireplace in
+				updatingFireplace.lastStatusUpdate = Date()
+//				updatingFireplace.parentUserId = optFireplace?.parentUserId ?? User.defaultUserId
+				return updatingFireplace.create(orUpdate: true, on: req)
+			}.transform(to: HTTPStatus(statusCode: 200, reasonPhrase: "Success!"))
+			.catchFlatMap () { error in
+				logger.error("Could not decode fireplace update message, error: \(error.localizedDescription).")
                     return Future.map(on: req) { HTTPStatus(statusCode: 404, reasonPhrase: "Could not decode fireplace update message, error: \(error.localizedDescription).") }
             }
         }
-        fireplaceRoutes.post("Update", use: updateHandler)
+	
+        fireplaceRoutes.post(ToastyServerRoutes.Fireplace.update, use: updateHandler)
     }
     static func action (_ action: ImpFireplaceAction, executeOn fp: Fireplace, on req: Request) throws -> Future<ImpFireplaceStatus> {
         var fireplace = fp
@@ -76,13 +69,5 @@ struct FireplaceManagementController: RouteCollection {
             }.catchFlatMap {error in
                 throw error
             }
-    }
-    
-    func discoverFireplaces (for user: User, context req: Request ) {
-    //stub
-    }
-
-    func addFireplace (to userAccount: User, add fireplace: Fireplace ) {
-        //stub
     }
 }

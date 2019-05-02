@@ -64,7 +64,7 @@ struct AlexaError: Error, ToastyError {
     
     var context: [String:String] {
         return [
-            "RETRYURL": ToastyAppRoutes.site + "/" + ToastyAppRoutes.lwa.login,
+		"RETRYURL": ToastyServerRoutes.site?.appendingPathComponent(ToastyServerRoutes.Lwa.root).appendingPathComponent(ToastyServerRoutes.Lwa.login).absoluteString ?? "not available", //note, took out a slash here
             "ERROR" : description,
             "ERRORURI" : "",
             "ERRORFILE" : file ?? "not captured",
@@ -132,7 +132,7 @@ struct ImpError: Error, ToastyError {
     
     var context: [String:String] {
         return [
-            "RETRYURL": ToastyAppRoutes.site + "/" + ToastyAppRoutes.lwa.login,
+            "RETRYURL": ToastyServerRoutes.site?.appendingPathComponent(ToastyServerRoutes.Lwa.root).appendingPathComponent(ToastyServerRoutes.Lwa.login).absoluteString ?? "not available",  //note, took out a slash here
             "ERROR" : description,
             "ERRORURI" : "",
             "ERRORFILE" : file ?? "not captured",
@@ -214,7 +214,7 @@ struct LoginWithAmazonError: Error, ToastyError {
     }
     var context: [String:String] {
         return [
-            "RETRYURL": ToastyAppRoutes.site + "/" + ToastyAppRoutes.lwa.login,
+            "RETRYURL": ToastyServerRoutes.site?.appendingPathComponent(ToastyServerRoutes.Lwa.root).appendingPathComponent(ToastyServerRoutes.Lwa.login).absoluteString ?? "not available",  //note, took out a slash here
             "ERROR" : description,
             "ERRORURI" : uri ?? "",
             "ERRORFILE" : file ?? "not captured",

@@ -1,4 +1,5 @@
 import FluentPostgreSQL
+import DatabaseKit
 import Vapor
 import Leaf
 
@@ -11,10 +12,12 @@ public func configure(
 	let router = EngineRouter.default()
 	try routes(router)
 	services.register(router, as: Router.self)
+	services.register(LogMiddleware.self)
 	
 	var middlewares = MiddlewareConfig()
 	middlewares.use(ErrorMiddleware.self)
 	middlewares.use(SessionsMiddleware.self)
+	middlewares.use(LogMiddleware.self)
 	services.register(middlewares)
 	config.prefer(MemoryKeyedCache.self, for: KeyedCache.self)
 	//
@@ -26,7 +29,7 @@ public func configure(
 	try services.register(LeafProvider())
 	config.prefer(LeafRenderer.self, for: ViewRenderer.self)
 	// Configure a database
-	var databases = DatabasesConfig()
+	var databasesConfig = DatabasesConfig()
 	let databaseConfig: PostgreSQLDatabaseConfig
 	if let url = Environment.get("DATABASE_URL") {
 		databaseConfig = PostgreSQLDatabaseConfig(url: url)!
@@ -58,15 +61,16 @@ public func configure(
 			password: password)
 	}
 	let database = PostgreSQLDatabase(config: databaseConfig)
-	databases.add(database: database, as: .psql)
-	services.register(databases)
+	databasesConfig.add(database: database, as: .psql)
+	databasesConfig.enableLogging(on: .psql)
+	services.register(databasesConfig)
 		
 	var migrations = MigrationConfig()
 	migrations.add(model: User.self, database: .psql)
 	migrations.add(model: Fireplace.self, database: .psql)
 	migrations.add(model: AmazonAccount.self, database: .psql)
-	migrations.add(model: AlexaFireplace.self, database: .psql)
-	//    migrations.add(model: SessionData.self, database: .psql)
+	migrations.add(model: UserFireplacePivot.self, database: .psql)
+	migrations.add(model: FireplaceAmazonPivot.self, database: .psql)
 	services.register(migrations)
 	
 	//configure server to work in container
