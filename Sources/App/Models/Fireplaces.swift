@@ -41,7 +41,6 @@ struct Fireplace: Codable, Hashable {
 		powerStatus = source
 		controlUrl = agentUrl
 		deviceid = deviceId
-//		parentUserId = acctId
 		friendlyName = name ?? "Toasty Fireplace"
 		status = .unknown
 		lastStatusUpdate = nil
@@ -82,7 +81,6 @@ extension Fireplace { //decoding strategy
 		deviceid = try allValues.decode(String.self, forKey: .deviceid)
 		status = try allValues.decode(FireLevel.self, forKey: .status)
 		lastStatusUpdate = try allValues.decodeIfPresent(Date.self, forKey: .lastStatusUpdate)
-//		parentUserId = try allValues.decodeIfPresent(UUID.self, forKey: .parentUserId)
 	}
 }
 
@@ -95,7 +93,6 @@ extension Fireplace { //encoding strategy
 		try container.encode(deviceid, forKey: .deviceid)
 		try container.encode(status, forKey: .status)
 		try container.encodeIfPresent(lastStatusUpdate, forKey: .lastStatusUpdate)
-//		try container.encodeIfPresent(parentUserId, forKey: .parentUserId)
 	}
 }
 

@@ -27,7 +27,7 @@ struct AlexaController: RouteCollection {
 //            logger.debug("Request in discovery handler: \(req.debugDescription)")
 //            logger.debug("JSON in discovery hander: \(msgJSON)")
             
-            return try User.getAmazonAccount(usingToken: userRequestToken, on: req)
+            return try AmazonAccount.getAmazonAccount(usingToken: userRequestToken, on: req)
                 .flatMap(to: [Fireplace].self) { acct in
                     return try acct.fireplaces.query(on: req).all()
                 }.flatMap (to: Response.self) { fireplaces in
@@ -79,7 +79,7 @@ struct AlexaController: RouteCollection {
 //                        }
 //                }
 			
-                return try User.getAmazonAccount(usingToken: userRequestToken, on: req)
+                return try AmazonAccount.getAmazonAccount(usingToken: userRequestToken, on: req)
                     .flatMap(to: [Fireplace].self) { account in
                         return try account.fireplaces.query(on: req).all()
                     }.flatMap(to: ImpFireplaceStatus.self) { fireplaces in

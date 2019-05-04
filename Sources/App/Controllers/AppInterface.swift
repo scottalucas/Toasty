@@ -52,9 +52,11 @@ Adds a user and associate their fireplaces to the database. Success should retur
 				let userUpdatePackage = try? req.content.syncDecode(UserUpdatePackage.self)
 				else { throw Abort(.badRequest) }
 			//app sent package without any fireplaces
-			guard
-				userUpdatePackage.fireplaceIds.count > 0
-				else { throw Abort(.notFound) }
+			
+			//need to think about what to do when user doesn't send any fireplaces
+//			guard
+//				userUpdatePackage.fireplaceIds.count > 0
+//				else { throw Abort(.notFound) }
 			
 			debugPrint(userUpdatePackage)
 			
@@ -149,10 +151,21 @@ Adds a user and associate their fireplaces to the database. Success should retur
 }
 
 struct AlexaAppController: RouteCollection {
+
+	struct AlexaUpdatePackage: Codable {
+		var amazonId: String
+		var amazonSimplifiedFireplaces: [AlexaSimplifiedFireplace]
+	}
 	
-	struct AlexaUser: Content {
-		var userId: UUID
-		var amazonId: String?
+	struct AlexaSimplifiedFireplace: Codable, Hashable {
+		var name: String
+		var id: String
+	}
+	
+	struct AlexaUpdateResponse: Codable, Content {
+		var integratedFireplaces: [AlexaSimplifiedFireplace] = []
+		var unintegratedFireplaces: [AlexaSimplifiedFireplace] = []
+		var notFoundFireplaces: [AlexaSimplifiedFireplace] = []
 	}
 	
 	func boot(router: Router) throws {
@@ -171,13 +184,61 @@ struct AlexaAppController: RouteCollection {
 			return acct
 		}
 		
-		func addAccountHandler(req: Request) throws -> Future<HTTPResponse> {
+		/*
+		Input: amazon account Id and an array of fireplace ids available on the end user's device
+		
+		This function
+		1) creates (or gets) the associated amazon account
+		2) finds and returns fireplace records that match the provided array of fireplace ids (there shouldn't be any missing here if Imp has registered at startup
+		3) finds and returns fireplace ids that are registered for Alexa under the provided Amazon id
+		4) finds and returns fireplace ids that were provided by the app but are not registered for Alexa integration.
+*/
+		func updateAmazonAccount(req: Request) throws -> Future<AlexaUpdateResponse> {
 			debugPrint("Hit alexa account add handler.")
-			guard let amazonAccount = try? req.content.syncDecode(AmazonAccount.self)
+			guard let alexaUpdatePackage = try? req.content.syncDecode(AlexaUpdatePackage.self)
 				else { throw Abort(.badRequest) }
-			debugPrint(amazonAccount)
-			return amazonAccount.create(orUpdate: true, on: req)
-				.transform(to: HTTPResponse(status: .noContent))
+			
+			//1
+			let amazonAccount: Future<AmazonAccount> =  AmazonAccount(alexaUpdatePackage.amazonId).create(orUpdate: true, on: req)
+			
+			//2
+			var matchingFireplacesFromDatabase: Future<[AlexaSimplifiedFireplace]> {
+				guard alexaUpdatePackage.amazonSimplifiedFireplaces.count > 0 else {return req.future([])}
+				return Fireplace
+					.query(on: req)
+					.group(.or) { or in
+						alexaUpdatePackage.amazonSimplifiedFireplaces.forEach { or.filter(\.deviceid == $0.id) }
+					}
+					.all()
+					.map(to: [AlexaSimplifiedFireplace].self) {
+						fps in
+						return fps.compactMap {
+							guard let i = $0.id else { return nil }
+							return AlexaSimplifiedFireplace(name: $0.friendlyName, id: i) }
+				}
+			}
+			//3
+			var fireplacesIntegratedWithAmazon: Future<[AlexaSimplifiedFireplace]> {
+				return amazonAccount
+					.flatMap(to: [Fireplace].self) { acct in
+						return try acct.fireplaces.query(on: req)
+							.all() }
+					.map(to: [AlexaSimplifiedFireplace].self) { fps in
+						return fps.compactMap {
+							guard let i = $0.id else { return nil }
+							return AlexaSimplifiedFireplace(name: $0.friendlyName, id: i) }
+				}
+			}
+	
+			return flatMap(to: AlexaUpdateResponse.self, matchingFireplacesFromDatabase, fireplacesIntegratedWithAmazon) { available, integrated in
+				
+				let notFound = Array(Set(alexaUpdatePackage.amazonSimplifiedFireplaces).subtracting(Set(available)))
+				
+				//4
+				let notIntegrated = Array(Set(available).subtracting(Set(integrated)))
+				
+				return req.future(AlexaUpdateResponse(integratedFireplaces: integrated, unintegratedFireplaces: notIntegrated, notFoundFireplaces: notFound))
+			}
 		}
 		
 		func  deleteAccountHandler(req: Request) throws -> Future<HTTPResponse> {
@@ -199,7 +260,7 @@ struct AlexaAppController: RouteCollection {
 		appRoutes.get(use: helloHandler)
 		
 		appRoutes.get(ToastyServerRoutes.App.Alexa.account, AmazonAccount.parameter, use: getAccountHandler)
-		appRoutes.post(ToastyServerRoutes.App.Alexa.account, use: addAccountHandler) //post body contains AmazonAccount
+		appRoutes.post(ToastyServerRoutes.App.Alexa.account, use: updateAmazonAccount) //post body contains AmazonAccount
 		appRoutes.delete(ToastyServerRoutes.App.Alexa.account, AmazonAccount.parameter, use: deleteAccountHandler)
 		appRoutes.post(ToastyServerRoutes.App.Alexa.fireplace, use: addFireplacesHandler)
 		appRoutes.delete(ToastyServerRoutes.App.Alexa.fireplace, use: deleteFireplacesHandler)
