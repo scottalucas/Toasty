@@ -12,8 +12,8 @@ import Fluent
 import FluentPostgreSQL
 
 struct AppController: RouteCollection {
-	struct UserUpdatePackage: Codable {
-		var userId: UUID
+	struct PhoneUpdatePackage: Codable {
+		var phoneId: UUID
 		var fireplaceIds: [String]
 	}
 	
@@ -31,16 +31,16 @@ struct AppController: RouteCollection {
 			return "Hello! You got user controller!"
 		}
 		
-		func getUserHandler (req: Request) throws -> Future<User> {
+		func getUserHandler (req: Request) throws -> Future<Phone> {
 			debugPrint("Hit get user handler.")
 			guard
-				let user = try? req.parameters.next(User.self)
+				let user = try? req.parameters.next(Phone.self)
 			else { throw Abort(.notFound) }
 			return user
 		}
 		
 		/*
-Adds a user and associate their fireplaces to the database. Success should return status 204 (no content). If we receive unregistered fireplaces or find fireplaces in the databased that weren't sent in the update, return status 206 (partial content) and send the extra/missing fireplaces back to the app.
+Adds a phone and associated fireplaces to the database. Success should return status 204 (no content). If we receive unregistered fireplaces or find fireplaces in the databased that weren't sent in the update, return status 206 (partial content) and send the extra/missing fireplaces back to the app.
 		Other Errors:
 			"Not found" means the user didn't send any fireplaces.
 			"Bad request" means we could not decode the package sent by the app
@@ -49,7 +49,7 @@ Adds a user and associate their fireplaces to the database. Success should retur
 			debugPrint("Hit app add handler.")
 			//app sent package that couldn't be decoded
 			guard
-				let userUpdatePackage = try? req.content.syncDecode(UserUpdatePackage.self)
+				let phoneUpdatePackage = try? req.content.syncDecode(PhoneUpdatePackage.self)
 				else { throw Abort(.badRequest) }
 			//app sent package without any fireplaces
 			
@@ -58,45 +58,45 @@ Adds a user and associate their fireplaces to the database. Success should retur
 //				userUpdatePackage.fireplaceIds.count > 0
 //				else { throw Abort(.notFound) }
 			
-			debugPrint(userUpdatePackage)
+			debugPrint(phoneUpdatePackage)
 			
 			//Return the database records matching the sent fireplaces. Since fireplaces should already be registered, we aren't creating them if they don't exist in the database.
 			let matchingFireplacesFromDatabase: Future<[Fireplace]> =
 				Fireplace
 					.query(on: req)
 					.group(.or) { or in
-						userUpdatePackage.fireplaceIds.forEach { or.filter(\.deviceid == $0) }
+						phoneUpdatePackage.fireplaceIds.forEach { or.filter(\.deviceid == $0) }
 					}
 					.all()
 			
-			//there may or may not be a user registered with this id. Return existing record or create.
-			let databaseUserRecord: Future<User> =
-				User
-					.find(userUpdatePackage.userId, on: req)
-					.flatMap(to: User.self) { optUser in
+			//there may or may not be a phone registered with this id. Return existing record or create.
+			let databasePhoneRecord: Future<Phone> =
+				Phone
+					.find(phoneUpdatePackage.phoneId, on: req)
+					.flatMap(to: Phone.self) { optUser in
 						if let usr = optUser {
 							return req.future(usr)
 						} else {
-							return User(userId: userUpdatePackage.userId).create(on: req)
+							return Phone(phoneId: phoneUpdatePackage.phoneId).create(on: req)
 						}
 			}
 			
 			//wait for the user and fireplaces to be retrieved from the database
-			return flatMap(to: HTTPResponse.self, matchingFireplacesFromDatabase, databaseUserRecord) { databaseFireplaces, user in
+			return flatMap(to: HTTPResponse.self, matchingFireplacesFromDatabase, databasePhoneRecord) { databaseFireplaces, phone in
 				
 				 //list of fireplace ids sent by app that are not registered in database. Send back to the app.
 				let fireplaceIdsMissingFromDatabase =
-					Array(Set(userUpdatePackage.fireplaceIds)
+					Array(Set(phoneUpdatePackage.fireplaceIds)
 							.subtracting(Set(databaseFireplaces.compactMap { $0.id })))
 				
 				//list of fireplace ids associated with this user but not sent by the app (could be from a previous pairing event). Might consider detaching these but for now we'll just send them back to the app.
 				let fireplaceIdsNotSentByApp =
 					Array(Set(databaseFireplaces.compactMap { $0.id } )
-							.subtracting(Set(userUpdatePackage.fireplaceIds)))
+							.subtracting(Set(phoneUpdatePackage.fireplaceIds)))
 				
-				//get the id for the user record from the database
+				//get the id for the phone record from the database
 				guard
-					user.id != nil
+					phone.id != nil
 					else {throw Abort(.internalServerError)}
 				
 				var updates: [Future<HTTPStatus>] = []
@@ -104,10 +104,10 @@ Adds a user and associate their fireplaces to the database. Success should retur
 				//check if the fireplaces from the databased exist in the pivot for this user. If not, add them.
 				for fp in databaseFireplaces {
 					updates.append(
-					fp.users.isAttached(user, on: req)
+					fp.phones.isAttached(phone, on: req)
 						.flatMap(to: HTTPResponseStatus.self) { attached in
 							if !attached {
-								return user.fireplaces
+								return phone.fireplaces
 									.attach(fp, on: req)
 									.transform(to: .created)
 							} else {
@@ -136,7 +136,7 @@ Adds a user and associate their fireplaces to the database. Success should retur
 		}
 		
 		func  deleteUserHandler(req: Request) throws -> Future<HTTPResponse> {
-			guard let user = try? req.parameters.next(User.self) else {return req.future(HTTPResponse(status: .notFound))}
+			guard let user = try? req.parameters.next(Phone.self) else {return req.future(HTTPResponse(status: .notFound))}
 			return user
 				.delete(on: req)
 				.transform(to: HTTPResponse(status: .noContent))
@@ -144,17 +144,17 @@ Adds a user and associate their fireplaces to the database. Success should retur
 		}
 		
 		appRoutes.get(use: helloHandler)
-		appRoutes.get(ToastyServerRoutes.App.user, User.parameter, use: getUserHandler)
+		appRoutes.get(ToastyServerRoutes.App.user, Phone.parameter, use: getUserHandler)
 		appRoutes.post(ToastyServerRoutes.App.user, use: addUserHandler) //post body contains UserUpdatePackage
-		appRoutes.delete(ToastyServerRoutes.App.user, User.parameter, use: deleteUserHandler)
+		appRoutes.delete(ToastyServerRoutes.App.user, Phone.parameter, use: deleteUserHandler)
 	}
 }
 
 struct AlexaAppController: RouteCollection {
 
 	struct AlexaUpdatePackage: Codable {
-		var amazonId: String
-		var amazonSimplifiedFireplaces: [AlexaSimplifiedFireplace]
+		var amazonAcct: AmazonAccount
+		var alexaSimplifiedFireplaces: [AlexaSimplifiedFireplace]
 	}
 	
 	struct AlexaSimplifiedFireplace: Codable, Hashable {
@@ -188,56 +188,91 @@ struct AlexaAppController: RouteCollection {
 		Input: amazon account Id and an array of fireplace ids available on the end user's device
 		
 		This function
-		1) creates (or gets) the associated amazon account
-		2) finds and returns fireplace records that match the provided array of fireplace ids (there shouldn't be any missing here if Imp has registered at startup
-		3) finds and returns fireplace ids that are registered for Alexa under the provided Amazon id
-		4) finds and returns fireplace ids that were provided by the app but are not registered for Alexa integration.
+		1) extracts the account and creates (or gets) the associated amazon account
+		2) extracts the inbound fireplaces from the request
+		3) looks up registered fireplaces with the same deviceid. (there shouldn't be any missing here if Imp has registered at startup)
+		4) matches and returns fireplaces that have the same ids as the requested fireplaces
+		5) waits for resolution of account, requested fps, registered fps and integrated fps
+		6) updates the name of registered fireplace in the database if necessary and converts array of registered fireplaces into AlexaSimplifiedFireplace array.
+		7) converts array of integrated Fireplaces into array of Simplified fps
+		8) waits for resolution of integrated and registered simplfied fps, then calculates not found (requested by app but not found in the database), not integrated (all fps requested minus the integrated fireplaces), and integrated (in the account/fireplace pivot, meaning it will be discovered by Alexa, all fps even if not requested) arrays.
+		
 */
 		func updateAmazonAccount(req: Request) throws -> Future<AlexaUpdateResponse> {
 			debugPrint("Hit alexa account add handler.")
-			guard let alexaUpdatePackage = try? req.content.syncDecode(AlexaUpdatePackage.self)
-				else { throw Abort(.badRequest) }
+			
+			let alexaUpdatePackage: Future<AlexaUpdatePackage> = try req.content.decode(AlexaUpdatePackage.self)
 			
 			//1
-			let amazonAccount: Future<AmazonAccount> =  AmazonAccount(alexaUpdatePackage.amazonId).create(orUpdate: true, on: req)
-			
-			//2
-			var matchingFireplacesFromDatabase: Future<[AlexaSimplifiedFireplace]> {
-				guard alexaUpdatePackage.amazonSimplifiedFireplaces.count > 0 else {return req.future([])}
-				return Fireplace
-					.query(on: req)
-					.group(.or) { or in
-						alexaUpdatePackage.amazonSimplifiedFireplaces.forEach { or.filter(\.deviceid == $0.id) }
-					}
-					.all()
-					.map(to: [AlexaSimplifiedFireplace].self) {
-						fps in
-						return fps.compactMap {
-							guard let i = $0.id else { return nil }
-							return AlexaSimplifiedFireplace(name: $0.friendlyName, id: i) }
+			var amazonAccount: Future<AmazonAccount> {
+				return alexaUpdatePackage.flatMap(to: AmazonAccount.self) { package in
+					return package.amazonAcct
+					.create(orUpdate: true, on: req)
 				}
 			}
+			//2
+			var simplfiedFireplacesFromApp: Future<[AlexaSimplifiedFireplace]> {
+				return alexaUpdatePackage.map(to: [AlexaSimplifiedFireplace].self) { package in
+					return package.alexaSimplifiedFireplaces
+				}
+			}
+			
 			//3
-			var fireplacesIntegratedWithAmazon: Future<[AlexaSimplifiedFireplace]> {
+			var registeredFireplaces: Future<[Fireplace]> {
+				return simplfiedFireplacesFromApp
+					.flatMap (to: [Fireplace].self) { aFps in
+						guard aFps.count > 0 else {return req.future(Array<Fireplace>.init())}
+						return Fireplace
+							.query(on: req)
+							.group(.or) { or in
+								aFps.forEach { or.filter(\.deviceid == $0.id) }
+							}
+							.all()
+				}
+			}
+			
+			//4
+			var integratedFireplaces: Future<[Fireplace]> {
 				return amazonAccount
 					.flatMap(to: [Fireplace].self) { acct in
-						return try acct.fireplaces.query(on: req)
-							.all() }
-					.map(to: [AlexaSimplifiedFireplace].self) { fps in
-						return fps.compactMap {
-							guard let i = $0.id else { return nil }
-							return AlexaSimplifiedFireplace(name: $0.friendlyName, id: i) }
-				}
+						return (try? acct.fireplaces.query(on: req).all()) ?? req.future(Array<Fireplace>.init()) }
 			}
-	
-			return flatMap(to: AlexaUpdateResponse.self, matchingFireplacesFromDatabase, fireplacesIntegratedWithAmazon) { available, integrated in
+	//5
+			return flatMap(to: AlexaUpdateResponse.self, simplfiedFireplacesFromApp, registeredFireplaces, integratedFireplaces, amazonAccount) { requested, registered, integrated, account in
 				
-				let notFound = Array(Set(alexaUpdatePackage.amazonSimplifiedFireplaces).subtracting(Set(available)))
+				//6
+				var registeredAlexaFireplaces: Future<[AlexaSimplifiedFireplace]> {
+					let futures: [Future<AlexaSimplifiedFireplace>] = registered.compactMap { fpToSave in
+						var mutableFpToSave = fpToSave
+						guard let registeredAlexaSimplifiedFp = requested.first(where: { $0.id == mutableFpToSave.deviceid } ) else {return nil}
+						if mutableFpToSave.friendlyName != registeredAlexaSimplifiedFp.name {
+							mutableFpToSave.friendlyName = registeredAlexaSimplifiedFp.name
+							return mutableFpToSave.update(on: req)
+								.map(to: AlexaSimplifiedFireplace.self) { savedFp in
+									return registeredAlexaSimplifiedFp }
+						} else {
+							return req.future(registeredAlexaSimplifiedFp)
+						}
+					}
+					return futures.flatten(on: req)
+				}
 				
-				//4
-				let notIntegrated = Array(Set(available).subtracting(Set(integrated)))
-				
-				return req.future(AlexaUpdateResponse(integratedFireplaces: integrated, unintegratedFireplaces: notIntegrated, notFoundFireplaces: notFound))
+				 //7
+				var integratedAlexaFireplaces: Future<[AlexaSimplifiedFireplace]> {
+					guard let integratedFps = try? account.fireplaces.query(on: req).all() else { return req.future(Array<AlexaSimplifiedFireplace>.init()) }
+					return integratedFps.map(to: [AlexaSimplifiedFireplace].self) {intFps in
+						return intFps.compactMap{ fp in
+							guard let aFp = requested.first(where: { $0.id == fp.deviceid }) else {return nil}
+							return aFp
+						}
+					}
+				}
+				//8
+				return flatMap(to: AlexaUpdateResponse.self, registeredAlexaFireplaces, integratedAlexaFireplaces) { finalRegistered, finalIntegrated in
+					let notFound = Array(Set(requested).subtracting(Set(finalRegistered)))
+					let notIntegrated = Array(Set(requested).subtracting(Set(finalIntegrated)).subtracting(Set(notFound)))
+					return req.future(AlexaUpdateResponse(integratedFireplaces: finalIntegrated, unintegratedFireplaces: notIntegrated, notFoundFireplaces: notFound))
+				}
 			}
 		}
 		

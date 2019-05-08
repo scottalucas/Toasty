@@ -5,7 +5,7 @@ import PostgreSQL
 public func boot(_ app: Application) throws {
 
     do {
-        let _ = try User.setUpUnassignedUserAccount(on: app).wait()
+        let _ = try Phone.setUpUnassignedPhone(on: app).wait()
     } catch {
         switch error {
         case let err as ImpError:

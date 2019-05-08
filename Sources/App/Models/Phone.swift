@@ -2,7 +2,7 @@ import Foundation
 import Vapor
 import FluentPostgreSQL
 
-struct User: Codable {
+struct Phone: Codable {
 	var id: UUID?
 	var name: String?
 	var username: String?
@@ -19,8 +19,8 @@ struct User: Codable {
 		self.username = username
 	}
 	
-	init(userId: UUID) {
-		id = userId
+	init(phoneId: UUID) {
+		id = phoneId
 	}
 	
 	mutating func setName (_ name: String) {
@@ -35,27 +35,27 @@ struct User: Codable {
 }
 
 
-extension User: PostgreSQLUUIDModel {}
-extension User: Content {}
-extension User: Migration {}
-extension User: Parameter {}
+extension Phone: PostgreSQLUUIDModel {}
+extension Phone: Content {}
+extension Phone: Migration {}
+extension Phone: Parameter {}
 
 
 
-extension User {
-	static func setUpUnassignedUserAccount (on app: Application) -> Future<String> {
-		let unassignedUserId = UUID.init("FFFFFFFF-0000-0000-0000-000000000000")!
+extension Phone {
+	static func setUpUnassignedPhone (on app: Application) -> Future<String> {
+		let unassignedPhoneId = UUID.init("FFFFFFFF-0000-0000-0000-000000000000")!
 		return app.withNewConnection(to: .psql) {
 			conn in
-			return User.query(on: conn)
-				.filter ( \.id == unassignedUserId )
+			return Phone.query(on: conn)
+				.filter ( \.id == unassignedPhoneId )
 				.first()
-				.flatMap(to: User.self) { optUser in
+				.flatMap(to: Phone.self) { optUser in
 					guard optUser == nil else { throw ImpError(.foundDefaultUser) }
-					return User.init(name: "Default user", username: "default").save(on: conn)
+					return Phone.init(name: "Default user", username: "default").save(on: conn)
 				}.flatMap () { user in
 					let queryString = """
-					UPDATE "User" SET id = '\(unassignedUserId.uuidString)' WHERE id = '\(user.id!.uuidString)';
+					UPDATE "Phone" SET id = '\(unassignedPhoneId.uuidString)' WHERE id = '\(user.id!.uuidString)';
 					"""
 					return conn.simpleQuery(queryString).transform(to: "done")
 			}

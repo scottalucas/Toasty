@@ -8,7 +8,7 @@ final class FireplaceOnOffTests: XCTestCase {
     var app: Application!
     
     var jsonValidator = Validator.shared
-    var testUser:User? = nil
+    var testUser:Phone? = nil
     var testAzAcct: AmazonAccount? = nil
     var goodTestFp1: Fireplace? = nil
     var goodTestFp2: Fireplace? = nil
@@ -41,7 +41,7 @@ final class FireplaceOnOffTests: XCTestCase {
         }
         let db = try! app.newConnection(to: .psql).wait()
         defer { db.close() }
-        testUser = try! User.init().save(on: db).wait()
+        testUser = try! Phone.init().save(on: db).wait()
         let prof = LWACustomerProfileResponse(user_id: testUser!.id!.uuidString, email: "someone@somewhere.com", name: "Test", postal_code: "94024")
         testAzAcct = try! AmazonAccount(with: prof, user: testUser!)!.save(on: db).wait()
         goodTestFp1 = try! Fireplace(power: .ok, imp: "https://agent.electricimp.com/2arZveArVIRJ", user: testUser!.id!, friendly: "test 1").save(on: db).wait()
@@ -91,7 +91,7 @@ final class FireplaceOnOffTests: XCTestCase {
         defer { db.close() } //closes the database when out of scope no matter what.
         let myContainer = try! app.client().container
         let myReq = Request.init(using: myContainer)
-        let azAcct = try! User.getAmazonAccount(usingToken: accessToken, on: myReq).wait()
+        let azAcct = try! Phone.getAmazonAccount(usingToken: accessToken, on: myReq).wait()
         let expectedFps = try! AlexaController.getAssociatedFireplaces(using: azAcct, on: myReq).wait()
         let msgId:String = TestHelpers.randomAlphaNumericString(length: 10)
         let jsonData = String(format: AlexaJson.discoveryReq, msgId, accessToken).data(using: .utf8)! //param: msgId, token

@@ -34,7 +34,7 @@ struct Fireplace: Codable, Hashable {
     }
     
     enum CodingKeys: String, CodingKey {
-        case friendlyName = "name", powerStatus = "power", controlUrl = "url", deviceid, status = "level", lastStatusUpdate, parentUserId
+        case friendlyName = "name", powerStatus = "power", controlUrl = "url", deviceid, status = "level", lastStatusUpdate
     }
     
 	init (power source: PowerStatus, imp agentUrl: String, id deviceId: String, friendly name: String?) {

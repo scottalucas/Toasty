@@ -18,7 +18,7 @@ struct TestController: RouteCollection {
 		}
 		
 		func resetHandler(req: Request) throws -> Future<HTTPResponse> {
-			return User.query(on: req).all().transform(to: HTTPResponse(status: .ok))
+			return Phone.query(on: req).all().transform(to: HTTPResponse(status: .ok))
 		}
 		
 		func sendAPNS(req: Request) throws -> Future<Response> {
@@ -55,7 +55,7 @@ struct TestController: RouteCollection {
 					try res.content.encode(msg, as: .plainText)
 					return Future.map(on: req) {res}
 			}
-			return User(name: "Placeholder", username: "Placeholder")
+			return Phone(name: "Placeholder", username: "Placeholder")
 				.save(on: req)
 				.flatMap(to: [Fireplace].self) { usr in
 					var saveResults: [Future<Fireplace>] = []

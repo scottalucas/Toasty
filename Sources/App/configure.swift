@@ -66,7 +66,7 @@ public func configure(
 	services.register(databasesConfig)
 		
 	var migrations = MigrationConfig()
-	migrations.add(model: User.self, database: .psql)
+	migrations.add(model: Phone.self, database: .psql)
 	migrations.add(model: Fireplace.self, database: .psql)
 	migrations.add(model: AmazonAccount.self, database: .psql)
 	migrations.add(model: UserFireplacePivot.self, database: .psql)

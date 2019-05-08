@@ -16,32 +16,32 @@ This class maps users to fireplaces. These can be many to many relationships.
 struct UserFireplacePivot {
 	
 	var id: UUID? //auto assigned when record is created
-	var userId: User.ID //phone vendor uuid
+	var phoneId: Phone.ID //phone vendor uuid
 	var fireplaceId: Fireplace.ID //fireplace id from Imp
 }
 
 extension UserFireplacePivot: PostgreSQLUUIDPivot, ModifiablePivot {
 	
-	typealias Left = User
+	typealias Left = Phone
 	typealias Right = Fireplace
 	
-	static let leftIDKey: LeftIDKey = \.userId
+	static let leftIDKey: LeftIDKey = \.phoneId
 	static let rightIDKey: RightIDKey = \.fireplaceId
 	
-	init (_ user: User, _ fireplace: Fireplace) throws {
-		self.userId = try user.requireID()
+	init (_ phone: Phone, _ fireplace: Fireplace) throws {
+		self.phoneId = try phone.requireID()
 		self.fireplaceId = try fireplace.requireID()
 	}
 }
 
-extension User {
-	var fireplaces: Siblings<User, Fireplace, UserFireplacePivot> {
+extension Phone {
+	var fireplaces: Siblings<Phone, Fireplace, UserFireplacePivot> {
 		return siblings()
 	}
 }
 
 extension Fireplace {
-	var users: Siblings<Fireplace, User, UserFireplacePivot> {
+	var phones: Siblings<Fireplace, Phone, UserFireplacePivot> {
 		return siblings()
 	}
 }
@@ -55,8 +55,8 @@ extension UserFireplacePivot: Migration {
 		return Database.create(self, on: connection) { builder in
 			try addProperties(to: builder)
 			builder.reference(
-				from: \.userId,
-				to: \User.id,
+				from: \.phoneId,
+				to: \Phone.id,
 				onDelete: .cascade)
 			builder.reference(
 				from: \.fireplaceId,
