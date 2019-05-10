@@ -78,7 +78,7 @@ public func configure(
 	services.register(serverConfigure)
 	
 	// Shell
-	services.register(Shell.self)
+//	services.register(Shell.self)
 }
 
 struct ENVVariables {

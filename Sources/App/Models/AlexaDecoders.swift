@@ -40,7 +40,7 @@ struct AlexaEnvironment: Codable {
 struct FireplaceConstants: Codable { //set all fireplace constants here
 	static let manufacturerName: String = "Toasty Fireplace"
 	static let description: String = "Smart home fireplace controller"
-	static let displayCategories:[AlexaEnvironment.AlexaDisplayCategories] = [.OTHER]
+	static let displayCategories:[AlexaEnvironment.AlexaDisplayCategories] = [.SWITCH]
 }
 
 // Discovery structs
@@ -53,10 +53,10 @@ struct AlexaFireplaceEndpoint: Codable { //use this to create the discovery resp
 	var cookie:[String: String]? = [:]
 	var capabilities: [AlexaCapability] = [
 		AlexaCapability.init(interface: .basic, version: .latest, supportedProps: nil, reported: nil, retrievable: nil),
-		AlexaCapability.init(interface: .power, version: .latest, supportedProps: [["name":"powerState"]], reported: false, retrievable: true)]
+		AlexaCapability.init(interface: .power, version: .latest, supportedProps: [["name":"powerState"]], reported: true, retrievable: true)]
 	init (from fireplace:Fireplace) {
 		endpointId = fireplace.deviceid
-		friendlyName = fireplace.friendlyName
+		friendlyName = fireplace.friendlyName + " fireplace"
 	}
 }
 

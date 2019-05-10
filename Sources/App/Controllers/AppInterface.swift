@@ -237,7 +237,7 @@ struct AlexaAppController: RouteCollection {
 					.flatMap(to: [Fireplace].self) { acct in
 						return (try? acct.fireplaces.query(on: req).all()) ?? req.future(Array<Fireplace>.init()) }
 			}
-	//5
+			//5
 			return flatMap(to: AlexaUpdateResponse.self, simplfiedFireplacesFromApp, registeredFireplaces, integratedFireplaces, amazonAccount) { requested, registered, integrated, account in
 				
 				//6
@@ -282,14 +282,72 @@ struct AlexaAppController: RouteCollection {
 				.transform(to: HTTPResponse(status: .ok))
 		}
 		
-		func addFireplacesHandler(req: Request) throws -> HTTPResponse {
+		func addFireplacesHandler(req: Request) throws -> Future<HTTPResponse> {
 			debugPrint("Hit add fireplace handler.")
-			return HTTPResponse(status: .ok)
+			let package = try req.content.syncDecode(AlexaUpdatePackage.self)
+			guard package.alexaSimplifiedFireplaces.count > 0,
+				let acctId = package.amazonAcct.id
+				else {return req.future(HTTPResponse(status: .notFound))}
+			let fireplaces = Fireplace
+				.query(on: req)
+				.group(.or) { or in
+					package.alexaSimplifiedFireplaces.forEach { aFp in
+						or.filter(\.deviceid == aFp.id)
+					}
+				}
+				.all()
+			
+			let account = AmazonAccount.find(acctId, on: req)
+			
+			return flatMap(to: HTTPResponse.self, fireplaces, account) {fps, acct in
+				guard let a = acct else {return req.future(HTTPResponse(status: .notFound))}
+				var attachOps: [Future<Void>] = []
+				fps.forEach { fp in
+					attachOps.append(
+						a.fireplaces.isAttached(fp, on: req)
+							.map(to: Void.self) { attached in
+								if !attached {
+									_ = a.fireplaces.attach(fp, on: req)
+								}
+						}
+					)
+				}
+				return attachOps.flatten(on: req).transform(to: HTTPResponse(status: .noContent))
+			}
 		}
 		
-		func deleteFireplacesHandler(req: Request) throws -> HTTPResponse {
+		func deleteFireplacesHandler(req: Request) throws -> Future<HTTPResponse> {
 			debugPrint("Hit app delete handler.")
-			return HTTPResponse(status: .ok)
+			let package = try req.content.syncDecode(AlexaUpdatePackage.self)
+			guard package.alexaSimplifiedFireplaces.count > 0,
+				let acctId = package.amazonAcct.id
+				else {return req.future(HTTPResponse(status: .notFound))}
+			let fireplaces = Fireplace
+				.query(on: req)
+				.group(.or) { or in
+					package.alexaSimplifiedFireplaces.forEach { aFp in
+						or.filter(\.deviceid == aFp.id)
+					}
+				}
+				.all()
+			
+			let account = AmazonAccount.find(acctId, on: req)
+			
+			return flatMap(to: HTTPResponse.self, fireplaces, account) {fps, acct in
+				guard let a = acct else {return req.future(HTTPResponse(status: .notFound))}
+				var attachOps: [Future<Void>] = []
+				fps.forEach { fp in
+					attachOps.append(
+						a.fireplaces.isAttached(fp, on: req)
+							.map(to: Void.self) { attached in
+								if attached {
+									_ = a.fireplaces.detach(fp, on: req)
+								}
+						}
+					)
+				}
+				return attachOps.flatten(on: req).transform(to: HTTPResponse(status: .noContent))
+			}
 		}
 		
 		appRoutes.get(use: helloHandler)

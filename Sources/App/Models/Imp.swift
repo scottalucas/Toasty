@@ -42,8 +42,8 @@ struct ImpFireplaceStatus: Codable { //messages for status communication deviceC
         case ack, value
     }
     
-    init(ack: AcknowledgeMessage? = nil) {
-        self.ack = ack ?? .notAvailable
+    init(ack: AcknowledgeMessage = .notAvailable) {
+        self.ack = ack
         value = ValueMessage(rawValue: (self.ack.rawValue))
     }
 }
