@@ -148,20 +148,4 @@ struct AlexaController: RouteCollection {
 		alexaRoutes.post(use: reportStateHandler)
 		alexaRoutes.post("PowerController", use: powerControllerHandler)
 	}
-	
-	//*******************************************************************************
-	//helper functions, not route responders
-	//*******************************************************************************
-	//
-	//    static func getFireplaces(forAmazonAccount acct: AmazonAccount, on req: Request) throws -> Future<[Fireplace]> {
-	//
-	//	guard let azId = acct.id
-	//		else { return req.future(Array<Fireplace>.init()) }
-	//
-	//	return Fireplace
-	//		.query(on: req)
-	//		.join(\Fireplace.id, to: \AlexaFireplace.parentFireplaceId)
-	//		.filter(\AlexaFireplace.parentAmazonAccountId == azId)
-	//		.all()
-	//    }
 }
