@@ -75,8 +75,7 @@ public func configure(
 	services.register(migrations)
 	
 	//configure server to work in container
-	guard let portString = Environment.get(ENVVariables.port),
-		let port = Int(portString) else {fatalError()}
+	let port: Int = Int(Environment.get(ENVVariables.port) ?? "8080") ?? 8080
 	logger.log("Starting server on port \(port)", at: .debug, file: #file, function: #function, line: #line, column: #column)
 	let serverConfigure = NIOServerConfig.default(hostname: "0.0.0.0", port: port)
 	services.register(serverConfigure)
