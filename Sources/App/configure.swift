@@ -37,7 +37,7 @@ public func configure(
 	} else if let url = Environment.get("DB_POSTGRESQL") {
 		databaseConfig = PostgreSQLDatabaseConfig(url: url)!
 	} else {
-		let hostname = Environment.get("DATABASE_HOSTNAME") ?? "localhost"
+		let hostname = Environment.get("DATABASE_HOSTNAME") ?? "db"
 		let username = Environment.get("DATABASE_USER") ?? "toasty"
 		let password = Environment.get("DATABASE_PASSWORD") ?? "Lynnseed"
 		let databaseName: String
