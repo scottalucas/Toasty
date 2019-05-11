@@ -32,6 +32,7 @@ public func configure(
 	var databasesConfig = DatabasesConfig()
 	let databaseConfig: PostgreSQLDatabaseConfig
 	if let url = Environment.get("DATABASE_URL") {
+		logger.log("getting database url: \(url)", at: .debug, file: #file, function: #function, line: #line, column: #column)
 		databaseConfig = PostgreSQLDatabaseConfig(url: url)!
 	} else if let url = Environment.get("DB_POSTGRESQL") {
 		databaseConfig = PostgreSQLDatabaseConfig(url: url)!
@@ -76,6 +77,7 @@ public func configure(
 	//configure server to work in container
 	guard let portString = Environment.get(ENVVariables.port),
 		let port = Int(portString) else {fatalError()}
+	logger.log("Starting server on port \(port)", at: .debug, file: #file, function: #function, line: #line, column: #column)
 	let serverConfigure = NIOServerConfig.default(hostname: "0.0.0.0", port: port)
 	services.register(serverConfigure)
 	
