@@ -64,7 +64,7 @@ public func configure(
 	databasesConfig.add(database: database, as: .psql)
 	databasesConfig.enableLogging(on: .psql)
 	services.register(databasesConfig)
-		
+	
 	var migrations = MigrationConfig()
 	migrations.add(model: Phone.self, database: .psql)
 	migrations.add(model: Fireplace.self, database: .psql)
@@ -74,17 +74,20 @@ public func configure(
 	services.register(migrations)
 	
 	//configure server to work in container
-	let serverConfigure = NIOServerConfig.default(hostname: "0.0.0.0", port: 8080)
+	guard let portString = Environment.get(ENVVariables.port),
+		let port = Int(portString) else {fatalError()}
+	let serverConfigure = NIOServerConfig.default(hostname: "0.0.0.0", port: port)
 	services.register(serverConfigure)
 	
 	// Shell
-//	services.register(Shell.self)
+	//	services.register(Shell.self)
 }
 
 struct ENVVariables {
 	static let siteUrl:String = "SITEURL"
 	static let lwaClientId:String = "LWACLIENTID"
 	static let lwaClientSecret:String = "LWACLIENTSECRET"
+	static let port: String = "PORT"
 }
 
 
