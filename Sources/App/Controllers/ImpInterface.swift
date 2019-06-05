@@ -15,7 +15,7 @@ import FluentPostgreSQL
 struct FireplaceManagementController: RouteCollection {
     func boot(router: Router) throws {
         
-        let fireplaceRoutes = router.grouped(ToastyServerRoutes.Fireplace.root)
+        let fireplaceRoutes = router.grouped(ToastyServerRoutes.Fireplace.root, ToastyServerRoutes.Fireplace.Update.root)
         
         func updateHandler (_ req: Request) throws -> Future<HTTPStatus> {
             let logger = try req.sharedContainer.make(Logger.self)
@@ -39,35 +39,78 @@ struct FireplaceManagementController: RouteCollection {
             }
         }
 	
-        fireplaceRoutes.post(ToastyServerRoutes.Fireplace.update, use: updateHandler)
+	func timezoneUpdateHandler (_ req: Request) throws -> Future<HTTPStatus> {
+		let logger = try req.sharedContainer.make(Logger.self)
+		logger.debug ("Hit timezone update for fireplace.")
+		guard
+			let fpId = try? req.parameters.next(String.self),
+			let tzHours = try? req.parameters.next(Double.self)
+			else { throw Abort(.badRequest) }
+		return Fireplace
+			.find(fpId, on: req)
+			.flatMap(to: HTTPStatus.self) { optFp in
+				guard let fp = optFp else {return req.future(HTTPStatus.notFound)}
+				var updatedFp = fp
+				updatedFp.timezone = TimeZone.init(secondsFromGMT: Int(tzHours * 3600.0))
+				return updatedFp
+					.save(on: req)
+					.transform(to: HTTPStatus.ok)
+		}
+	}
+	
+	func weatherUrlupdateHandler (_ req: Request) throws -> Future<HTTPStatus> {
+		let logger = try req.sharedContainer.make(Logger.self)
+		logger.debug ("Hit weather url update for fireplace.")
+		guard
+			let fp = try? req.parameters.next(String.self),
+			let weatherUrl = try? req.parameters.next(String.self),
+			let weatherData = Data(base64Encoded: weatherUrl)
+			else { throw Abort(.badRequest) }
+		return Fireplace
+			.find(fp, on: req)
+			.flatMap(to: HTTPStatus.self) { optFp in
+				guard let fp = optFp,
+					let decodedUrl = String(data: weatherData, encoding: .utf8)
+					else { throw Abort(.notFound) }
+				var updatedFp = fp
+				updatedFp.weatherUrl = decodedUrl
+				return updatedFp
+					.save(on: req)
+					.transform(to: HTTPStatus.ok)
+		}
+	}
+
+	fireplaceRoutes.post(use: updateHandler)
+	fireplaceRoutes.get(ToastyServerRoutes.Fireplace.Update.timezone, String.parameter, Double.parameter, use: timezoneUpdateHandler)
+	fireplaceRoutes.get(ToastyServerRoutes.Fireplace.Update.weatherUrl, String.parameter, String.parameter, use: weatherUrlupdateHandler)
     }
-    static func action (_ action: ImpFireplaceAction, executeOn fp: Fireplace, on req: Request) throws -> Future<ImpFireplaceStatus> {
-        var fireplace = fp
-//        let logger = try req.make(Logger.self)
-        let sessionConfig = URLSessionConfiguration.default
-        sessionConfig.timeoutIntervalForRequest = 7.0
-        sessionConfig.timeoutIntervalForResource = 7.0
-        let shortSession = URLSession(configuration: sessionConfig)
-        let client = FoundationClient.init(shortSession, on: req)
-        guard let postUrl = URL.init(string: fireplace.controlUrl) else { throw ImpError(.badUrl, file: #file, function: #function, line: #line) }
-        var finalStatus:ImpFireplaceStatus = ImpFireplaceStatus()
-        return client.post(postUrl) { newPost in
-            newPost.http.headers.add(name: .contentType, value: "application/json")
-            try newPost.content.encode(action)
-            }.flatMap(to: ImpFireplaceStatus.self) { res in
-                guard let status = try? res.content.decode(ImpFireplaceStatus.self) else {
-                    throw ImpError(.couldNotDecodeImpResponse, file: #file, function: #function, line: #line) }
-                return status
-            }.flatMap (to: Fireplace.self) { status in
-                finalStatus = status
-                fireplace.status = status.value == .ON ? .on : .off
-                fireplace.lastStatusUpdate = Date()
-                return fireplace.save(on: req)
-            }.map(to: ImpFireplaceStatus.self) { fireplace in
-                finalStatus.uncertaintyInMilliseconds = fireplace.uncertainty()
-                return finalStatus
-            }.catchFlatMap {error in
-                throw error
-            }
-    }
+	static func action (_ action: ImpFireplaceAction, forFireplace fp: Fireplace, on req: Request) throws -> Future<Result<ImpFireplaceStatus, ImpError>> {
+		let logger = try? req.make(Logger.self)
+		var fireplace = fp
+		var finalStatus: ImpFireplaceStatus = ImpFireplaceStatus()
+		let sessionConfig = URLSessionConfiguration.default
+		sessionConfig.timeoutIntervalForRequest = 7.0
+		sessionConfig.timeoutIntervalForResource = 7.0
+		let shortSession = URLSession(configuration: sessionConfig)
+		let client = FoundationClient.init(shortSession, on: req)
+		guard let postUrl = URL.init(string: fireplace.controlUrl) else { return req.future(.failure(ImpError(.badUrl, file: #file, function: #function, line: #line))) }
+		return client.post(postUrl) { newPost in
+			newPost.http.headers.add(name: .contentType, value: "application/json")
+			try newPost.content.encode(action)
+			}.flatMap(to: ImpFireplaceStatus.self) { res in
+				let status = try res.content.decode(ImpFireplaceStatus.self)
+				return status
+			}.flatMap (to: Fireplace.self) { status in
+				finalStatus = status
+				fireplace.status = status.value == .ON ? .on : .off
+				fireplace.lastStatusUpdate = Date()
+				return fireplace.save(on: req)
+			}.map(to: Result<ImpFireplaceStatus, ImpError>.self) { fireplace in
+				finalStatus.uncertaintyInMilliseconds = fireplace.uncertainty()
+				return .success(finalStatus)
+			}.catchMap {error in
+				logger?.error(error.localizedDescription)
+				return .failure(ImpError(.couldNotDecodeImpResponse, file: #file, function: #function, line: #line))
+		}
+	}
 }

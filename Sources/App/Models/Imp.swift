@@ -15,8 +15,8 @@ struct ImpFireplaceAction: Encodable, Content { //action directive from Alexa ==
     enum Directive: String, Codable, Content {
         case on = "TurnOn", off = "TurnOff", update = "Update"
     }
-    init (action: String) throws {
-        guard Directive(rawValue: action) != nil else { throw AlexaError(.didNotUnderstandFireplaceCommand, file: #file, function: #function, line: #line)}
+    init? (action: String) {
+        guard Directive(rawValue: action) != nil else { return nil }
         name = Directive(rawValue: action)!
     }
     
@@ -31,7 +31,7 @@ struct ImpFireplaceStatus: Codable { //messages for status communication deviceC
     var uncertaintyInMilliseconds: Int?
     
     enum AcknowledgeMessage: String, Codable {
-        case acceptedOn = "ON", acceptedOff = "OFF", rejected = "UNKNOWN", notAvailable = "NA"
+        case acceptedOn = "ON", acceptedOff = "OFF", rejected = "UNKNOWN", updating = "UPDATING", notAvailable = "NA"
     }
     
     enum ValueMessage: String, Codable {

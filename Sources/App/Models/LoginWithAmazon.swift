@@ -67,44 +67,42 @@ extension AmazonAccount: Migration {}
 extension AmazonAccount: Parameter {}
 
 extension AmazonAccount { //interact with Login with Amazon to get user id.
-	static func getAmazonAccount (usingToken token: String, on req: Request) throws -> Future<AmazonAccount> {
-		let logger = try req.make(Logger.self)
+	static func getAmazonAccount (usingToken token: String, on req: Request) -> Future<Result<AmazonAccount, LoginWithAmazonError>> {
+		let logger = try? req.make(Logger.self)
+		
 		guard let client = try? req.make(Client.self) else {
-			throw LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line)
-		}
+			return req.future(.failure(LoginWithAmazonError(.serverError, file: #file, function: #function, line: #line))) }
+		
 		if token == "test" { //for testing on
 			return AmazonAccount.query(on: req).first()
-				.map (to: AmazonAccount.self) { optAcct in
-					guard let acct = optAcct else {
-						throw LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line)
-					}
-					return acct
+				.map(to: Result<AmazonAccount, LoginWithAmazonError>.self) { optAcct in
+					guard let acct = optAcct else { return .failure(LoginWithAmazonError(.accountNotFound, file: #file, function: #function, line: #line)) }
+					return .success(acct)
 			}
 		}
+
 		let headers = HTTPHeaders.init([("x-amz-access-token", token)])
 		return client.get(LWASites.users, headers: headers)
-			.flatMap(to: AmazonAccount.self) { res in
+			.flatMap(to: Result<AmazonAccount, LoginWithAmazonError>.self) { res in
 				switch res.http.status.code {
 				case 200:
 					do {
 						return try res.content.decode(LWACustomerProfileResponse.self)
-							.flatMap(to: AmazonAccount?.self) { scope in
-								logger.info("Got Amazon id: \(scope.user_id)")
-								return AmazonAccount.query(on: req).filter(\.id == scope.user_id).first()
-							} .map (to: AmazonAccount.self) { optAcct in
-								guard let acct = optAcct else {
-									throw LoginWithAmazonError(.couldNotCreateAccount, file: #file, function: #function, line: #line)
-								}
-								return acct
+							.flatMap(to: AmazonAccount?.self) { profile in
+								logger?.info("Got Amazon id: \(profile.user_id)")
+								return AmazonAccount.find(profile.user_id, on: req)
+							}
+							.map(to: Result<AmazonAccount, LoginWithAmazonError>.self) {optAcct in
+								guard let acct = optAcct else { return .failure(LoginWithAmazonError(.accountNotFound, file: #file, function: #function, line: #line))}
+								return .success(acct)
 						}
 					} catch {
-						throw LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line)
+						logger?.info("Failed to decode Amazon id. Response: \(res.debugDescription) File: \(#file) Function: \(#function) Line: \(#line)")
+						return req.future(.failure(LoginWithAmazonError(.couldNotDecode, file: #file, function: #function, line: #line)))
 					}
 				default:
-					if let profileRetrieveError = try? res.content.syncDecode(LWACustomerProfileResponseError.self) {
-						throw LoginWithAmazonError(.couldNotRetrieveAmazonAccount(profileRetrieveError), file: #file, function: #function, line: #line)
-					}
-					throw LoginWithAmazonError(.couldNotInitializeAccount, file: #file, function: #function, line: #line)
+					logger?.info("Request to LWA returned error code. Response: \(res.debugDescription) File: \(#file) Function: \(#function) Line: \(#line)")
+					return req.future(.failure(LoginWithAmazonError(.accountNotFound, file: #file, function: #function, line: #line)))
 				}
 		}
 	}

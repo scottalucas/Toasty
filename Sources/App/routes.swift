@@ -41,7 +41,11 @@ struct ToastyServerRoutes {
 	}
 	struct Fireplace { //routes that handle transactions from Electric Imp
 		static let root = "imp"
-		static let update = "update"
+		struct Update {
+			static let root = "update"
+			static let timezone = "timezone"
+			static let weatherUrl = "weatherUrl"
+		}
 	}
 	struct Test {
 		static let root = "test"

@@ -104,17 +104,17 @@ Adds a phone and associated fireplaces to the database. Success should return st
 				//check if the fireplaces from the databased exist in the pivot for this user. If not, add them.
 				for fp in databaseFireplaces {
 					updates.append(
-					fp.phones.isAttached(phone, on: req)
-						.flatMap(to: HTTPResponseStatus.self) { attached in
-							if !attached {
-								return phone.fireplaces
-									.attach(fp, on: req)
-									.transform(to: .created)
-							} else {
-								return req.future(.created)
-							}
-					}
-				)
+						fp.phones.isAttached(phone, on: req)
+							.flatMap(to: HTTPResponseStatus.self) { attached in
+								if !attached {
+									return phone.fireplaces
+										.attach(fp, on: req)
+										.transform(to: .created)
+								} else {
+									return req.future(.created)
+								}
+						}
+					)
 				}
 				
 				return updates

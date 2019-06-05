@@ -442,15 +442,13 @@ enum AlexaErrorValue: String {
 	case valueOutOfRange = "VALUE_OUT_OF_RANGE"
 }
 
-struct AlexaErrorResponse: Codable, Content, ResponseEncodable {
+struct AlexaErrorResponse: Codable, Content, Error, ResponseEncodable {
 	var event: AlexaEvent
-	init (requestedVia: AlexaMessage, errType eType: AlexaErrorValue, message msg: String) throws {
+	init (requestedVia: AlexaMessage, errType eType: AlexaErrorValue, message msg: String) {
 		var header = requestedVia.directive.header
 		header.name = AlexaEnvironment.Name.error
 		header.namespace = AlexaEnvironment.Namespace.basic
-		guard let endpoint = requestedVia.directive.endpoint else {
-			throw AlexaError(.couldNotCreateResponse, file: #file, function: #function, line: #line)
-		}
+		let endpoint = requestedVia.directive.endpoint ?? AlexaEndpoint(endpointId: "No endpoint provided in directive.")
 		let payload = AlexaPayload.init(err: eType, reason: msg)
 		event = AlexaEvent(header: header, endpoint: endpoint, payload: payload)
 	}
@@ -464,36 +462,38 @@ struct AlexaStateReport: Codable, Content, ResponseEncodable {
 	var context: AlexaContext
 	var event: AlexaEvent
 	
-	init? (forFireplace fireplace: Fireplace, stateRequest: AlexaMessage) {
+	init (stateRequest: AlexaMessage) throws {
 		guard
 			let cToken = stateRequest.directive.header.correlationToken,
-			let aToken = stateRequest.directive.endpoint?.scope?.token
-			else {return nil}
+			let endpoint = stateRequest.directive.endpoint
+			else {
+				throw AlexaErrorResponse(requestedVia: stateRequest, errType: .invalidDirective, message: "Could not decode either token or endpoint. Token: \(stateRequest.directive.header.correlationToken ?? "Not found.") Endpoint: \(stateRequest.directive.endpoint.debugDescription)")
+		}
 		let msgId = stateRequest.directive.header.messageId
 		let header = AlexaHeader(namespace: .basic, name: .state, payloadVer: .latest, msgId: msgId, corrToken: cToken)
-		let endpoint = AlexaEndpoint(endpointId: fireplace.deviceid, accessToken: aToken)
+//		let endpoint = AlexaEndpoint(endpointId: fireplace.deviceid, accessToken: aToken)
 		let payload = AlexaPayload()
 		event = AlexaEvent(header: header, endpoint: endpoint, payload: payload)
-		var properties:[AlexaProperty]
-		switch fireplace.status {
-		case .off, .on:
-			properties = [
-				AlexaProperty(endpointHealth: .ok),
-				AlexaProperty(namespace: .power, name: .power, value: fireplace.status.alexaValue()!, time: Date(), uncertainty: fireplace.uncertainty() ?? 60000)
-			]
-		case .unknown:
-			properties = [
-				AlexaProperty(endpointHealth: .unreachable)
-			]
-		}
-		context = AlexaContext(properties: properties)
+//		var properties:[AlexaProperty]
+//		switch fireplace.status {
+//		case .off, .on:
+//			properties = [
+//				AlexaProperty(endpointHealth: .ok),
+//				AlexaProperty(namespace: .power, name: .power, value: fireplace.status.alexaValue()!, time: Date(), uncertainty: fireplace.uncertainty() ?? 60000)
+//			]
+//		case .unknown:
+//			properties = [
+//				AlexaProperty(endpointHealth: .unreachable)
+//			]
+//		}
+		context = AlexaContext(properties: [])
 	}
 	
-	init? (_ deviceId: String, stateRequest: AlexaMessage) {
+	init (_ deviceId: String, stateRequest: AlexaMessage) throws {
 		guard
 			let cToken = stateRequest.directive.header.correlationToken,
 			let aToken = stateRequest.directive.endpoint?.scope?.token
-			else {return nil}
+			else {throw AlexaError(.couldNotDecodeStateRequest, file: #file, function: #function, line: #line)}
 		let msgId = stateRequest.directive.header.messageId
 		let header = AlexaHeader(namespace: .basic, name: .response, payloadVer: .latest, msgId: msgId, corrToken: cToken)
 		let endpoint = AlexaEndpoint(endpointId: deviceId, accessToken: aToken)
