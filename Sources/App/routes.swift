@@ -4,8 +4,8 @@ import Fluent
 /// Register your application's routes here.
 public func routes(_ router: Router) throws {
 	router.get {req -> Response in
-		let logger = try req.make(Logger.self)
-		logger.debug("In login")
+		let logger = try? req.make(Logger.self)
+		logger?.debug("Starting router...")
 		guard
 			let site = ToastyServerRoutes.site?.appendingPathComponent(ToastyServerRoutes.Lwa.root).appendingPathComponent(ToastyServerRoutes.Lwa.login).absoluteString
 			else {throw Abort(.notImplemented, reason: "Server Error: Main site URL not defined")}

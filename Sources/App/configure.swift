@@ -17,7 +17,7 @@ public func configure(
 	var middlewares = MiddlewareConfig()
 	middlewares.use(ErrorMiddleware.self)
 	middlewares.use(SessionsMiddleware.self)
-	middlewares.use(LogMiddleware.self)
+//	middlewares.use(LogMiddleware.self)
 	services.register(middlewares)
 	config.prefer(MemoryKeyedCache.self, for: KeyedCache.self)
 	//
@@ -37,25 +37,11 @@ public func configure(
 	} else if let url = Environment.get("DB_POSTGRESQL") {
 		databaseConfig = PostgreSQLDatabaseConfig(url: url)!
 	} else {
-//		let hostname = Environment.get("DATABASE_HOSTNAME") ?? "db"
 		let hostname = "localhost"
-//		let username = Environment.get("DATABASE_USER") ?? "toasty"
 		let username = "toasty"
-//		let password = Environment.get("DATABASE_PASSWORD") ?? "Lynnseed"
 		let password = "Lynnseed"
 		let databaseName: String = "postgres"
 		let databasePort: Int = 5432
-//		if (env == .testing) {
-//			databaseName = "vapor-test"
-//			if let testPort = Environment.get("DATABASE_PORT") {
-//				databasePort = Int(testPort) ?? 5433
-//			} else {
-//				databasePort = 5433
-//			}
-//		} else {
-//			databaseName = Environment.get("DATABASE_DB") ?? "postgres"
-//			databasePort = 5432
-//		}
 		
 		databaseConfig = PostgreSQLDatabaseConfig(
 			hostname: hostname,
@@ -66,7 +52,7 @@ public func configure(
 	}
 	let database = PostgreSQLDatabase(config: databaseConfig)
 	databasesConfig.add(database: database, as: .psql)
-	databasesConfig.enableLogging(on: .psql)
+//	databasesConfig.enableLogging(on: .psql)
 	services.register(databasesConfig)
 	
 	var migrations = MigrationConfig()
