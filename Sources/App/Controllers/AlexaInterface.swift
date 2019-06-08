@@ -51,9 +51,7 @@ struct AlexaController: RouteCollection {
 		func powerControllerHandler(_ req: Request) throws ->
 			Future<Response> {
 				let logger = try? req.sharedContainer.make(Logger.self)
-				
-				var requestRespons: AlexaPowerControllerResponse
-				
+
 				guard let controlRequest = try? req.content.syncDecode(AlexaMessage.self)
 					else { throw Abort(.notFound) }
 

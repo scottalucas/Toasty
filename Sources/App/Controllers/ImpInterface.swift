@@ -15,29 +15,34 @@ import FluentPostgreSQL
 struct FireplaceManagementController: RouteCollection {
     func boot(router: Router) throws {
         
-        let fireplaceRoutes = router.grouped(ToastyServerRoutes.Fireplace.root, ToastyServerRoutes.Fireplace.Update.root)
-        
-        func updateHandler (_ req: Request) throws -> Future<HTTPStatus> {
-            let logger = try req.sharedContainer.make(Logger.self)
-            logger.debug ("Hit Imp controller.")
-            guard var updatingFireplace = try? req.content.syncDecode(Fireplace.self) else {
-                logger.error("Failed to decode inbound request: \(req.http.body.debugDescription)")
-                return Future.map(on: req) { HTTPStatus(statusCode: 404, reasonPhrase: "Could not decode request.")}
-            }
-		
-		return Fireplace.query(on: req)
-			.filter( \.deviceid == updatingFireplace.deviceid )
-			.first()
-			.flatMap (to: Fireplace.self) { optFireplace in
-				updatingFireplace.lastStatusUpdate = Date()
-//				updatingFireplace.parentUserId = optFireplace?.parentUserId ?? User.defaultUserId
-				return updatingFireplace.create(orUpdate: true, on: req)
-			}.transform(to: HTTPStatus(statusCode: 200, reasonPhrase: "Success!"))
-			.catchFlatMap () { error in
-				logger.error("Could not decode fireplace update message, error: \(error.localizedDescription).")
-                    return Future.map(on: req) { HTTPStatus(statusCode: 404, reasonPhrase: "Could not decode fireplace update message, error: \(error.localizedDescription).") }
-            }
-        }
+	let fireplaceRoutes = router.grouped(ToastyServerRoutes.Fireplace.root, ToastyServerRoutes.Fireplace.Update.root)
+	
+	func updateHandler (_ req: Request) throws -> Future<Response> {
+		let logger = try req.sharedContainer.make(Logger.self)
+		logger.debug ("Hit Imp controller.")
+		let response = Response.init(using: req)
+		guard var updatingFireplace = try? req.content.syncDecode(Fireplace.self) else {
+			let err = "Failed to decode inbound request: \(req.http.body.debugDescription)"
+			logger.error(err)
+			response.http.status = .badRequest
+			response.http.body = HTTPBody.init(string: err)
+			return req.future(response)
+		}
+		updatingFireplace.lastStatusUpdate = Date()
+		return updatingFireplace.create(orUpdate: true, on: req)
+			.map(to: Response.self) { fp in
+				response.http.status = .accepted
+				response.http.body = HTTPBody.init(string: "Success!")
+				return response
+		}
+			.catchMap () { error in
+				let err = "Could not decode fireplace update message, error: \(error.localizedDescription)."
+				logger.error(err)
+				response.http.status = .internalServerError
+				response.http.body = HTTPBody.init(string: err)
+				return response
+		}
+	}
 	
 	func timezoneUpdateHandler (_ req: Request) throws -> Future<HTTPStatus> {
 		let logger = try req.sharedContainer.make(Logger.self)
@@ -79,11 +84,26 @@ struct FireplaceManagementController: RouteCollection {
 					.transform(to: HTTPStatus.ok)
 		}
 	}
+	
+	func publicKeyHandler (_ req: Request) throws -> String {
+		struct HandlerResponse: Codable {
+			var keyId: String = ENV.keyVersion
+			var key: String = ENV.publicKey
+			static var current: String {
+				let encoder = JSONEncoder()
+				let d = try? encoder.encode(HandlerResponse())
+				return String(data: d ?? "".data(using: .utf8)!, encoding: .utf8) ?? ""
+			}
+		}
+		return HandlerResponse.current
+	}
 
-	fireplaceRoutes.post(use: updateHandler)
+	fireplaceRoutes.put(use: updateHandler)
 	fireplaceRoutes.get(ToastyServerRoutes.Fireplace.Update.timezone, String.parameter, Double.parameter, use: timezoneUpdateHandler)
 	fireplaceRoutes.get(ToastyServerRoutes.Fireplace.Update.weatherUrl, String.parameter, String.parameter, use: weatherUrlupdateHandler)
+	fireplaceRoutes.get(ToastyServerRoutes.Fireplace.Update.rotateKey, use: publicKeyHandler)
     }
+	
 	static func action (_ action: ImpFireplaceAction, forFireplace fp: Fireplace, on req: Request) throws -> Future<Result<ImpFireplaceStatus, ImpError>> {
 		let logger = try? req.make(Logger.self)
 		var fireplace = fp
@@ -93,9 +113,11 @@ struct FireplaceManagementController: RouteCollection {
 		sessionConfig.timeoutIntervalForResource = 7.0
 		let shortSession = URLSession(configuration: sessionConfig)
 		let client = FoundationClient.init(shortSession, on: req)
-		guard let postUrl = URL.init(string: fireplace.controlUrl) else { return req.future(.failure(ImpError(.badUrl, file: #file, function: #function, line: #line))) }
+		guard let token = TokenManager.basicToken else { return req.future(.failure(ImpError(.couldNotCreateToken, file: #file, function: #function, line: #line))) }
+		guard let postUrl = URL.init(string: "\(fireplace.controlUrl)/directive") else { return req.future(.failure(ImpError(.badUrl, file: #file, function: #function, line: #line))) }
 		return client.post(postUrl) { newPost in
 			newPost.http.headers.add(name: .contentType, value: "application/json")
+			newPost.http.headers.add(name: .authorization, value: "Bearer \(token)")
 			try newPost.content.encode(action)
 			}.flatMap(to: ImpFireplaceStatus.self) { res in
 				let status = try res.content.decode(ImpFireplaceStatus.self)

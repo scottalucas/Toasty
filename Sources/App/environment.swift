@@ -36,4 +36,12 @@ struct ENV {
 	static var HOT_WEATHER_POLL_INTERVAL: Int = 60 * 60
 	static var HOT_WEATHER_POLL_START_MINUTE: Int = 1
 	static var HOUR_TO_POLL_FOR_FORECAST: Int = 20
+	
+	static let privateKey: String = ProcessInfo.processInfo.environment["privateKey"] ?? ""
+	static let publicKey: String = ProcessInfo.processInfo.environment["publicKey"] ?? ""
+	static let keyVersion: String = ProcessInfo.processInfo.environment["keyVersion"] ?? ""
+	
+//	static let privateKey: String = Environment.get("privateKey") ?? ""
+//	static let publicKey: String = Environment.get("publicKey") ?? ""
+//	static let keyVersion: String = Environment.get("keyVersion") ?? ""
 }

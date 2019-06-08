@@ -45,6 +45,7 @@ struct ToastyServerRoutes {
 			static let root = "update"
 			static let timezone = "timezone"
 			static let weatherUrl = "weatherUrl"
+			static let rotateKey = "rotateKey"
 		}
 	}
 	struct Test {

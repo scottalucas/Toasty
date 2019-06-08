@@ -3,6 +3,7 @@ import DatabaseKit
 import Vapor
 import Leaf
 
+
 public func configure(
 	_ config: inout Config,
 	_ env: inout Environment,
@@ -69,8 +70,7 @@ public func configure(
 	let serverConfigure = NIOServerConfig.default(hostname: "0.0.0.0", port: port)
 	services.register(serverConfigure)
 	
-	// Shell
-	//	services.register(Shell.self)
+	print(TokenManager.basicToken ?? "No token.")
 }
 
 struct ENVVariables {
@@ -78,6 +78,7 @@ struct ENVVariables {
 	static let lwaClientId:String = "LWACLIENTID"
 	static let lwaClientSecret:String = "LWACLIENTSECRET"
 	static let port: String = "PORT"
+	static let dataKey: String = "myPassword"
 }
 
 

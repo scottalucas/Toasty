@@ -88,7 +88,7 @@ struct ImpError: Error, ToastyError {
 	
 	enum Category {
 		//        case badUrl, couldNotEncodeImpAction, couldNotDecodeImpResponse, couldNotDecodePowerControllerDirective, failedToEncodeResponse, failedToLookupUser, noCorrespondingToastyAccount, childFireplacesNotFound, unknown
-		case fireplaceUnavailable, fireplaceOffline, operationNotSupported, badUrl, couldNotEncodeImpAction, couldNotDecodeImpResponse, foundDefaultUser, lowPower, unknown
+		case fireplaceUnavailable, fireplaceOffline, operationNotSupported, badUrl, couldNotEncodeImpAction, couldNotDecodeImpResponse, foundDefaultUser, lowPower, couldNotCreateToken, unknown
 	}
 	var description:String {
 		switch id {
@@ -108,6 +108,8 @@ struct ImpError: Error, ToastyError {
 			return "Default user already exists."
 		case .lowPower:
 			return "Low power."
+		case .couldNotCreateToken:
+			return "Could not create token."
 		case .unknown:
 			return "Unknown Imp error."
 		@unknown default:
@@ -161,6 +163,8 @@ extension ImpError {
 			return AlexaErrorResponse.init(requestedVia: message, errType: .notSupported, message: self.description)
 		case .lowPower:
 			return AlexaErrorResponse.init(requestedVia: message, errType: .lowPower, message: self.description)
+		case .couldNotCreateToken:
+			return AlexaErrorResponse(requestedVia: message, errType: .internalError, message: self.description)
 		case .unknown:
 			return AlexaErrorResponse.init(requestedVia: message, errType: .internalError, message: self.description)
 		@unknown default:
