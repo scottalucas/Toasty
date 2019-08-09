@@ -8,7 +8,7 @@ struct Fireplace: Codable, Hashable {
 	var friendlyName: String
 	var powerStatus: PowerStatus
 	var controlUrl: String //unique to each fireplace agent
-	var weatherUrl: String //url to get forecast for fireplace
+//	var weatherUrl: String //url to get forecast for fireplace
 	var timezone: TimeZone?
 	var status: FireLevel //flame is on or off
 	var lastStatusUpdate: Date?
@@ -36,17 +36,17 @@ struct Fireplace: Codable, Hashable {
     }
     
     enum CodingKeys: String, CodingKey {
-        case friendlyName = "name", powerStatus = "power", controlUrl = "url", deviceid, status = "level", lastStatusUpdate, weatherUrl, timezone
+        case friendlyName = "name", powerStatus = "power", controlUrl = "url", deviceid, status = "level", lastStatusUpdate, timezone
     }
     
-	init (power powerStatus: PowerStatus, imp agentUrl: String, id deviceId: String, friendly name: String?, weather weatherUrl: String = "", zone timeZone: TimeZone? = nil) {
+	init (power powerStatus: PowerStatus, imp agentUrl: String, id deviceId: String, friendly name: String?, zone timeZone: TimeZone? = nil) {
 		self.powerStatus = powerStatus
 		controlUrl = agentUrl
 		deviceid = deviceId
 		friendlyName = name ?? "Toasty Fireplace"
 		status = .unknown
 		lastStatusUpdate = nil
-		self.weatherUrl = weatherUrl
+//		self.weatherUrl = weatherUrl
 		self.timezone = timeZone
     }
 
@@ -85,7 +85,7 @@ extension Fireplace { //decoding strategy
 		deviceid = try allValues.decode(String.self, forKey: .deviceid)
 		status = try allValues.decode(FireLevel.self, forKey: .status)
 		lastStatusUpdate = try allValues.decodeIfPresent(Date.self, forKey: .lastStatusUpdate)
-		weatherUrl = (try? allValues.decode(String.self, forKey: .weatherUrl)) ?? ""
+//		weatherUrl = (try? allValues.decode(String.self, forKey: .weatherUrl)) ?? ""
 		if let tz = try? allValues.decodeIfPresent(Double.self, forKey: .timezone),
 			let tZoneDouble = tz {
 			timezone = TimeZone.init(secondsFromGMT: Int(tZoneDouble * 3600))
@@ -104,7 +104,7 @@ extension Fireplace { //encoding strategy
 		try container.encode(deviceid, forKey: .deviceid)
 		try container.encode(status, forKey: .status)
 		try container.encodeIfPresent(lastStatusUpdate, forKey: .lastStatusUpdate)
-		try container.encode(weatherUrl, forKey: .weatherUrl)
+//		try container.encode(weatherUrl, forKey: .weatherUrl)
 		let timeZoneOffset = timezone != nil ? Double(timezone!.secondsFromGMT())/3600.0 : nil
 		try container.encodeIfPresent(timeZoneOffset, forKey: .timezone)
 	}

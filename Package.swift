@@ -15,7 +15,8 @@ let package = Package(
     ],
     targets: [
 //        .target(name: "App", dependencies: ["Vapor", "FluentPostgreSQL", "Leaf"]),
-        .target(name: "App", dependencies: ["Vapor", "FluentPostgreSQL", "Leaf", "JWT", "Crypto"]),
+        .target(name: "App", dependencies: ["Vapor", "FluentPostgreSQL", "Leaf", "JWT"]),
+//        .target(name: "App", dependencies: ["Vapor", "FluentPostgreSQL", "Leaf", "JWT", "Crypto"]),
         .target(name: "Run", dependencies: ["App"]),
         .testTarget(name: "AppTests", dependencies: ["App"])
     ]

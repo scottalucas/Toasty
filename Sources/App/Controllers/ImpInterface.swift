@@ -63,28 +63,28 @@ struct FireplaceManagementController: RouteCollection {
 		}
 	}
 	
-	func weatherUrlupdateHandler (_ req: Request) throws -> Future<HTTPStatus> {
-		let logger = try req.sharedContainer.make(Logger.self)
-		logger.debug ("Hit weather url update for fireplace.")
-		guard
-			let fp = try? req.parameters.next(String.self),
-			let weatherUrl = try? req.parameters.next(String.self),
-			let weatherData = Data(base64Encoded: weatherUrl)
-			else { throw Abort(.badRequest) }
-		return Fireplace
-			.find(fp, on: req)
-			.flatMap(to: HTTPStatus.self) { optFp in
-				guard let fp = optFp,
-					let decodedUrl = String(data: weatherData, encoding: .utf8)
-					else { throw Abort(.notFound) }
-				var updatedFp = fp
-				updatedFp.weatherUrl = decodedUrl
-				return updatedFp
-					.save(on: req)
-					.transform(to: HTTPStatus.ok)
-		}
-	}
-	
+//	func weatherUrlupdateHandler (_ req: Request) throws -> Future<HTTPStatus> {
+//		let logger = try req.sharedContainer.make(Logger.self)
+//		logger.debug ("Hit weather url update for fireplace.")
+//		guard
+//			let fp = try? req.parameters.next(String.self),
+//			let weatherUrl = try? req.parameters.next(String.self),
+//			let weatherData = Data(base64Encoded: weatherUrl)
+//			else { throw Abort(.badRequest) }
+//		return Fireplace
+//			.find(fp, on: req)
+//			.flatMap(to: HTTPStatus.self) { optFp in
+//				guard let fp = optFp,
+//					let decodedUrl = String(data: weatherData, encoding: .utf8)
+//					else { throw Abort(.notFound) }
+//				var updatedFp = fp
+//				updatedFp.weatherUrl = decodedUrl
+//				return updatedFp
+//					.save(on: req)
+//					.transform(to: HTTPStatus.ok)
+//		}
+//	}
+//
 	func publicKeyHandler (_ req: Request) throws -> String {
 		struct HandlerResponse: Codable {
 			var keyId: String = ENV.keyVersion
@@ -100,7 +100,7 @@ struct FireplaceManagementController: RouteCollection {
 
 	fireplaceRoutes.put(use: updateHandler)
 	fireplaceRoutes.get(ToastyServerRoutes.Fireplace.Update.timezone, String.parameter, Double.parameter, use: timezoneUpdateHandler)
-	fireplaceRoutes.get(ToastyServerRoutes.Fireplace.Update.weatherUrl, String.parameter, String.parameter, use: weatherUrlupdateHandler)
+//	fireplaceRoutes.get(ToastyServerRoutes.Fireplace.Update.weatherUrl, String.parameter, String.parameter, use: weatherUrlupdateHandler)
 	fireplaceRoutes.get(ToastyServerRoutes.Fireplace.Update.rotateKey, use: publicKeyHandler)
     }
 	
@@ -120,11 +120,20 @@ struct FireplaceManagementController: RouteCollection {
 			newPost.http.headers.add(name: .authorization, value: "Bearer \(token)")
 			try newPost.content.encode(action)
 			}.flatMap(to: ImpFireplaceStatus.self) { res in
-				let status = try res.content.decode(ImpFireplaceStatus.self)
+                let status = try res.content.decode(ImpFireplaceStatus.self)
 				return status
 			}.flatMap (to: Fireplace.self) { status in
 				finalStatus = status
-				fireplace.status = status.value == .ON ? .on : .off
+                switch status.ack {
+                case .acceptedOff:
+                    fireplace.status = .off
+                case .acceptedOn:
+                    fireplace.status = .on
+                case .notAvailable, .rejected, .updating:
+                    fireplace.status = .unknown
+                @unknown default:
+                    fireplace.status = .unknown
+                }
 				fireplace.lastStatusUpdate = Date()
 				return fireplace.save(on: req)
 			}.map(to: Result<ImpFireplaceStatus, ImpError>.self) { fireplace in
