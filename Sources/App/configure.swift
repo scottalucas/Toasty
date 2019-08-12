@@ -62,6 +62,7 @@ public func configure(
 	migrations.add(model: AmazonAccount.self, database: .psql)
 	migrations.add(model: UserFireplacePivot.self, database: .psql)
 	migrations.add(model: FireplaceAmazonPivot.self, database: .psql)
+    migrations.add(model: BatteryLog.self, database: .psql)
 	services.register(migrations)
 	
 	//configure server to work in container

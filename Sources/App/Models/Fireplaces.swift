@@ -12,6 +12,7 @@ struct Fireplace: Codable, Hashable {
 	var timezone: TimeZone?
 	var status: FireLevel //flame is on or off
 	var lastStatusUpdate: Date?
+    var batteryLevel: Float?
 //	var parentUserId:User.ID?
 
 //    enum PowerStatus: Int, Codable, PostgreSQLEnumType {
@@ -36,7 +37,7 @@ struct Fireplace: Codable, Hashable {
     }
     
     enum CodingKeys: String, CodingKey {
-        case friendlyName = "name", powerStatus = "power", controlUrl = "url", deviceid, status = "level", lastStatusUpdate, timezone
+        case friendlyName = "name", powerStatus = "power", controlUrl = "url", deviceid, status = "level", lastStatusUpdate, timezone, batteryLevel
     }
     
 	init (power powerStatus: PowerStatus, imp agentUrl: String, id deviceId: String, friendly name: String?, zone timeZone: TimeZone? = nil) {
@@ -84,6 +85,7 @@ extension Fireplace { //decoding strategy
 		controlUrl = try allValues.decode(String.self, forKey: .controlUrl)
 		deviceid = try allValues.decode(String.self, forKey: .deviceid)
 		status = try allValues.decode(FireLevel.self, forKey: .status)
+        batteryLevel = try allValues.decodeIfPresent(Float.self, forKey: .batteryLevel)
 		lastStatusUpdate = try allValues.decodeIfPresent(Date.self, forKey: .lastStatusUpdate)
 //		weatherUrl = (try? allValues.decode(String.self, forKey: .weatherUrl)) ?? ""
 		if let tz = try? allValues.decodeIfPresent(Double.self, forKey: .timezone),
@@ -104,6 +106,7 @@ extension Fireplace { //encoding strategy
 		try container.encode(deviceid, forKey: .deviceid)
 		try container.encode(status, forKey: .status)
 		try container.encodeIfPresent(lastStatusUpdate, forKey: .lastStatusUpdate)
+        try container.encodeIfPresent(batteryLevel, forKey: .batteryLevel)
 //		try container.encode(weatherUrl, forKey: .weatherUrl)
 		let timeZoneOffset = timezone != nil ? Double(timezone!.secondsFromGMT())/3600.0 : nil
 		try container.encodeIfPresent(timeZoneOffset, forKey: .timezone)
