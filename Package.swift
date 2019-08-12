@@ -5,7 +5,7 @@ import PackageDescription
 let package = Package(
     name: "ToastyBackend",
     products: [
-        .executable(name: "Toasty", targets: ["Run"])
+        .library(name: "Toasty", targets: ["App"])
     ],
     dependencies: [
 	.package(url: "https://github.com/vapor/vapor.git", from: "3.3.0-rc"),

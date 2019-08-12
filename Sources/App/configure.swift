@@ -38,7 +38,8 @@ public func configure(
 	} else if let url = Environment.get("DB_POSTGRESQL") {
 		databaseConfig = PostgreSQLDatabaseConfig(url: url)!
 	} else {
-		let hostname = "localhost"
+		let hostname = "192.168.1.111"
+//        let hostname = "localhost"
 		let username = "toasty"
 		let password = "Lynnseed"
 		let databaseName: String = "postgres"
@@ -51,9 +52,10 @@ public func configure(
 			database: databaseName,
 			password: password)
 	}
+    logger.log("Database host: \(databaseConfig.serverAddress) username: \(databaseConfig.username) password: \(databaseConfig.password ?? "not found") database name: \(databaseConfig.database ?? "not found")", at: .info, file: #file, function: #function, line: #line, column: #column)
 	let database = PostgreSQLDatabase(config: databaseConfig)
 	databasesConfig.add(database: database, as: .psql)
-//	databasesConfig.enableLogging(on: .psql)
+    databasesConfig.enableLogging(on: .psql)
 	services.register(databasesConfig)
 	
 	var migrations = MigrationConfig()
@@ -66,9 +68,8 @@ public func configure(
 	services.register(migrations)
 	
 	//configure server to work in container
-	let port: Int = Int(Environment.get(ENVVariables.port) ?? "8080") ?? 8080
-	logger.log("Starting server on port \(port)", at: .debug, file: #file, function: #function, line: #line, column: #column)
-	let serverConfigure = NIOServerConfig.default(hostname: "0.0.0.0", port: port)
+	logger.log("Starting server on address \(ENV.SERVER), port \(ENV.PORT)", at: .debug, file: #file, function: #function, line: #line, column: #column)
+    let serverConfigure = NIOServerConfig.default(hostname: ENV.SERVER, port: Int(ENV.PORT))
 	services.register(serverConfigure)
 	
 	print(TokenManager.basicToken ?? "No token.")
