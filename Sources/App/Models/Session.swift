@@ -8,7 +8,7 @@ struct TokenManager {
 			exp = Date(timeIntervalSinceNow: to)
 			sub = type
 		}
-		let iss: String = "ToastyFireplace"
+		var iss: String = "ToastyFireplace"
 		let sub: String
 		var exp: Date
 	}
