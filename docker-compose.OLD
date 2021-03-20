@@ -1,0 +1,26 @@
+version: '3.7'
+services:
+  db:
+    image: postgres
+    restart: always
+    expose: ["5432"]
+    ports: ["5432:5432"]
+    environment:
+      POSTGRES_USER: toasty
+      POSTGRES_PASSWORD: Lynnseed
+  web:
+    image: swift:latest
+    environment:
+      DATABASE_USER: toasty
+      DATABASE_PASSWORD: Lynnseed
+      DATABASE_HOSTNAME: db
+    depends_on: [db]
+    expose:
+      - "8080"
+    ports: ["8080:8080"]
+    volumes:
+      - type: bind
+        source: .
+        target: /toastyBackend
+    working_dir: /toastyBackend
+    entrypoint: ["swift", "run"]

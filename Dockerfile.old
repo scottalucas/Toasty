@@ -1,0 +1,45 @@
+FROM swift:latest
+
+USER root
+
+RUN apt update && apt-get install -y uuid-dev && apt-get install -y libpq-dev
+
+#ADD ./ /toastyBackend
+
+WORKDIR /toastyBackend
+
+RUN export PATH=$PATH:/bin
+
+RUN useradd myuser && chown -R myuser /toastyBackend
+
+USER myuser
+
+RUN swift build --configuration=release
+
+#ENV PATH /toastyBackend/.build/release:$PATHENV
+
+ENV KEY_ID="AS2RUKBV8H"
+
+ENV TEAM_ID="U5FYS9QYU3"
+
+ENV APP_ID="com.porchdog.tfc001"
+
+ENV PRIVATE_KEY_PATH="keys/production/AuthKey_AS2RUKBV8H.p8"
+
+ENV IAP_PASSWORD="37879b2ba5fc471d8b958b046c7b239f"
+
+ENV RECEIPT_VALIDATION_HOST="buy.itunes.apple.com"
+
+# ENV DEVICE_TABLE_POLICY="drop"
+
+ENV USE_PRODUCTION_FOR_APNS="true"
+
+ENV EMAIL_SMTP_USERNAME="slucas0812@gmail.com"
+
+ENV EMAIL_SMTP_SERVER="smtp.gmail.com:587"
+
+ENV EMAIL_SMTP_PASSWORD="nlefudxciatdlhkc"
+
+ENV EMAIL_SECRET="qr7MYF3q9qchHiJKqMTDrMWJjzWBCKKkDug7oQMb"
+
+CMD swift run
