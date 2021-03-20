@@ -35,7 +35,9 @@ struct Phone: Codable {
 }
 
 
-extension Phone: PostgreSQLUUIDModel {}
+extension Phone: PostgreSQLUUIDModel {
+	typealias Database = PostgreSQLDatabase
+}
 extension Phone: Content {}
 extension Phone: Migration {}
 extension Phone: Parameter {}

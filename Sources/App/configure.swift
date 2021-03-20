@@ -32,13 +32,15 @@ public func configure(
 	// Configure a database
 	var databasesConfig = DatabasesConfig()
 	let databaseConfig: PostgreSQLDatabaseConfig
-	if let url = Environment.get("DATABASE_URL") {
+	if var url = Environment.get("DATABASE_URL") {
+		url = "\(url)?sslmode=require"
 		logger.log("getting database url: \(url)", at: .debug, file: #file, function: #function, line: #line, column: #column)
 		databaseConfig = PostgreSQLDatabaseConfig(url: url)!
+		logger.log("Database config successful", at: .debug, file: #file, function: #function, line: #line, column: #column)
 	} else if let url = Environment.get("DB_POSTGRESQL") {
 		databaseConfig = PostgreSQLDatabaseConfig(url: url)!
 	} else {
-		let hostname = "192.168.1.111"
+		let hostname = "192.168.1.21"
 //        let hostname = "localhost"
 		let username = "toasty"
 		let password = "Lynnseed"

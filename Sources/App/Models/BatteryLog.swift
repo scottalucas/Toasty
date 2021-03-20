@@ -16,6 +16,8 @@ struct BatteryLog: Codable {
     var batteryLevel: Float
 }
 
-extension BatteryLog: PostgreSQLUUIDModel {}
+extension BatteryLog: PostgreSQLUUIDModel {
+	typealias Database = PostgreSQLDatabase
+}
 extension BatteryLog: Content {}
 extension BatteryLog: Migration {}

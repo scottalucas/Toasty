@@ -46,7 +46,9 @@ extension Fireplace {
 	}
 }
 
-extension UserFireplacePivot: PostgreSQLUUIDModel {}
+extension UserFireplacePivot: PostgreSQLUUIDModel {
+	typealias Database = PostgreSQLDatabase
+}
 extension UserFireplacePivot: Content {}
 extension UserFireplacePivot: Migration {
 	static func prepare(

@@ -46,7 +46,8 @@ final class AmazonAccount: Codable {
 }
 
 extension AmazonAccount: PostgreSQLStringModel {
-	
+	typealias Database = PostgreSQLDatabase
+
 	var id: String? {
 		get {
 			return amazonUserId

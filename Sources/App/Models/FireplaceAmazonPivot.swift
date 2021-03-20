@@ -3,6 +3,7 @@ import Vapor
 import FluentPostgreSQL
 
 struct FireplaceAmazonPivot: Codable, PostgreSQLUUIDModel {
+	typealias Database = PostgreSQLDatabase
 	var id: UUID?
 	var fireplaceId: Fireplace.ID
 	var amazonAccountId: AmazonAccount.ID

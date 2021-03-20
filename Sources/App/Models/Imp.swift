@@ -49,6 +49,7 @@ struct ImpFireplaceStatus: Codable { //messages for status communication deviceC
 }
 
 struct ImpKey: Codable, PostgreSQLUUIDModel {
+	typealias Database = PostgreSQLDatabase
 	var id: UUID?
 	var privateKey: Data
 	var publicKey: String

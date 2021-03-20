@@ -14,6 +14,7 @@ struct TestController: RouteCollection {
 		let testRoutes = router.grouped(ToastyServerRoutes.Test.root)
 		
 		func helloHandler (_ req: Request) -> String {
+			logger.log("Test controller route hit", at: .debug, file: #file, function: #function, line: #line, column: #column)
 			return "Hello! You got Test controller!"
 		}
 		

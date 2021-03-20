@@ -59,6 +59,8 @@ struct Fireplace: Codable, Hashable {
 }
 
 extension Fireplace: PostgreSQLStringModel {
+	typealias Database = PostgreSQLDatabase
+
 	var id: String? {
 		get {
 			return deviceid

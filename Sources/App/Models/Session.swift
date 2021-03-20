@@ -26,8 +26,10 @@ struct TokenManager {
 	static var basicToken: String? {
 		var token = JWT<Payload>(payload: Payload())
 		token.header.kid = ENV.keyVersion
-		guard let privateKeyData = privateKey,
-            let d = try? token.sign(using: .rs256(key: privateKeyData)) else { print ("Couldn't sign token."); return nil }
+		guard
+			let privateKeyData = privateKey,
+            let d = try? token.sign(using: .rs256(key: privateKeyData))
+		else { print ("Couldn't sign token."); return nil }
 		return String(data: d, encoding: .utf8)
 	}
 
