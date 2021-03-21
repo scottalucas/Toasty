@@ -7,7 +7,9 @@
 //  Created by Scott Lucas on 5/23/18.
 //
 
-import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import Vapor
 import Fluent
 import FluentPostgreSQL
