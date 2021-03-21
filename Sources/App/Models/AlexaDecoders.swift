@@ -61,9 +61,9 @@ struct AlexaFireplaceEndpoint: Codable { //use this to create the discovery resp
 }
 
 final class AlexaCapability: Codable {
-	let type:Capability = .basic
+	var type:Capability = .basic
 	let interface: AlexaEnvironment.Namespace
-	let version: AlexaEnvironment.InterfaceVersion = .latest
+	var version: AlexaEnvironment.InterfaceVersion = .latest
 	let properties: Properties?
 	struct Properties: Codable {
 		let supported: [[String:String]]?
