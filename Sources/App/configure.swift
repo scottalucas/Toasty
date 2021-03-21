@@ -9,6 +9,7 @@ public func configure(
 	_ env: inout Environment,
 	_ services: inout Services
 	) throws {
+    print ("Starting config...")
 	try services.register(FluentPostgreSQLProvider())
 	let router = EngineRouter.default()
 	try routes(router)
