@@ -4,6 +4,7 @@ import Vapor
 let logger = PrintLogger()
 
 public func app(_ env: Environment) throws -> Application {
+    print("starting")
     logger.log("starting...", at: .debug, file: #file, function: #function, line: #line, column: #column)
     var config = Config.default()
     var env = env
