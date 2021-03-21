@@ -36,7 +36,7 @@ public func configure(
     logger.log("Entering database setup, retrieved ENV \(Environment.get("DATABASE_URL") ?? "not found")", at: .debug, file: #file, function: #function, line: #line, column: #column)
 	if var url = Environment.get("DATABASE_URL") {
 		logger.log("getting database url: \(url)", at: .debug, file: #file, function: #function, line: #line, column: #column)
-		url = "\(url)?sslmode=require"
+//		url = "\(url)?sslmode=require"
 		logger.log("getting database url: \(url)", at: .debug, file: #file, function: #function, line: #line, column: #column)
 		databaseConfig = PostgreSQLDatabaseConfig(url: url)!
 		logger.log("Database config successful", at: .debug, file: #file, function: #function, line: #line, column: #column)
