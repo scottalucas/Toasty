@@ -42,7 +42,7 @@ public func configure(
 		logger.log("getting database url: \(url)", at: .debug, file: #file, function: #function, line: #line, column: #column)
 		databaseConfig = PostgreSQLDatabaseConfig(url: url)!
 	} else {
-		logger.log("getting database url not found, using default.", at: .debug, file: #file, function: #function, line: #line, column: #column)
+		logger.log("getting database url not found, using def.", at: .debug, file: #file, function: #function, line: #line, column: #column)
 		let hostname = "192.168.1.21"
 //        let hostname = "localhost"
 		let username = "toasty"
